@@ -36,7 +36,12 @@ A React Native mobile application built with Expo for employee self-service, int
 
 Before you begin, ensure you have the following installed:
 
+- **Expo SDK:** `54.0.27` (specified in package.json)
+  - This project uses **Expo SDK 54**
+  - SDK 54 requires specific versions of Node.js, React, and React Native
+
 - **Node.js:** `20.19.4` or higher (LTS recommended)
+  - **Required for Expo SDK 54** - minimum version is 20.19.4
   - Check version: `node --version`
   - Download from: [nodejs.org](https://nodejs.org/)
 

@@ -131,8 +131,13 @@ AshidaESS/
 │   └── backend_mobile_auth.py    # Frappe authentication API
 │
 ├── assets/                       # Static assets (images, fonts)
-├── PROJECT_STRUCTURE.md          # Detailed project structure docs
-├── SECURITY_FIXES_TODO.md        # Security improvements roadmap
+├── documents/                    # Documentation files
+│   ├── PROJECT_STRUCTURE.md      # Detailed project structure docs
+│   ├── SECURITY_FIXES_TODO.md    # Security improvements roadmap
+│   ├── CODEBASE_GUIDE.md         # Complete codebase walkthrough
+│   ├── QUICK_WIN_TOKEN_EXPIRATION.md  # Token expiration guide
+│   ├── PRODUCTION_READINESS_CHECKLIST.md  # Production checklist
+│   └── prompt.txt                # Project prompts
 ├── package.json                  # Dependencies
 ├── tsconfig.json                 # TypeScript configuration
 └── README.md                     # This file
@@ -203,7 +208,7 @@ This app implements several security measures:
 - HTTPS enforcement
 - Token-based authentication
 
-⚠️ **To Be Implemented:** (See `SECURITY_FIXES_TODO.md`)
+⚠️ **To Be Implemented:** (See `documents/SECURITY_FIXES_TODO.md`)
 - Password hashing on backend (currently plain text - **CRITICAL**)
 - Rate limiting on login endpoint
 - Token expiration and refresh
@@ -230,8 +235,11 @@ Backend API file is included: `backend/backend_mobile_auth.py`
 
 ## 📖 Documentation
 
-- **Project Structure:** See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
-- **Security Fixes:** See [SECURITY_FIXES_TODO.md](SECURITY_FIXES_TODO.md)
+- **Project Structure:** See [PROJECT_STRUCTURE.md](documents/PROJECT_STRUCTURE.md)
+- **Codebase Guide:** See [CODEBASE_GUIDE.md](documents/CODEBASE_GUIDE.md) - Learn how the entire codebase works
+- **Security Fixes:** See [SECURITY_FIXES_TODO.md](documents/SECURITY_FIXES_TODO.md)
+- **Token Expiration Guide:** See [QUICK_WIN_TOKEN_EXPIRATION.md](documents/QUICK_WIN_TOKEN_EXPIRATION.md)
+- **Production Readiness:** See [PRODUCTION_READINESS_CHECKLIST.md](documents/PRODUCTION_READINESS_CHECKLIST.md)
 - **Expo Router:** [Expo Router Docs](https://docs.expo.dev/router/introduction/)
 - **Frappe API:** [Frappe REST API](https://frappeframework.com/docs/user/en/api/rest)
 

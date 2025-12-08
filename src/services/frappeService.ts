@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -331,16 +331,23 @@ export const useFrappeService = () => {
     [siteUrl, getAuthHeaders]
   );
 
-  return {
-    loading,
-    error,
-    getAuthHeaders,
-    getList,
-    getDoc,
-    createDoc,
-    updateDoc,
-    deleteDoc,
-    call,
-    callGet,
-  };
+  return useMemo(
+    () => ({
+      loading,
+      error,
+      getAuthHeaders,
+      getList,
+      getDoc,
+      createDoc,
+      updateDoc,
+      deleteDoc,
+      call,
+      callGet,
+    }),
+    // Note: loading and error are intentionally NOT in dependencies
+    // They change frequently but shouldn't cause the service object to be recreated
+    // Only the methods should trigger recreation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getAuthHeaders, getList, getDoc, createDoc, updateDoc, deleteDoc, call, callGet]
+  );
 };

@@ -239,7 +239,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       console.log('Calendar opened, fetching records...');
       fetchMonthlyRecords();
     }
-  }, [visible, currentMonth, currentEmployee?.name]);
+  }, [visible, currentMonth, currentEmployee?.name, fetchMonthlyRecords]);
 
   const formatTime = (timeString: string): string => {
     const time = new Date(timeString);

@@ -1,6 +1,8 @@
 // TypeScript type definitions and interfaces
 // Export all your types from this file
 
+import { Ionicons } from '@expo/vector-icons';
+
 export interface User {
   employee_id: string;
   employee_name: string;
@@ -39,14 +41,14 @@ export interface EmployeeCheckin {
 export interface QuickAction {
   id: string;
   title: string;
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   color: string;
   onPress: () => void;
 }
 
 // Greeting types
 export interface GreetingIcon {
-  name: string;
+  name: keyof typeof Ionicons.glyphMap;
   color: string;
 }
 

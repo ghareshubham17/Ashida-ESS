@@ -1,7 +1,7 @@
 import type { User } from '@/types';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -349,7 +349,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const restoreSession = async () => {
+  const restoreSession = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -417,7 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependencies - state setters are stable
 
   const clearAuthData = async () => {
     try {
@@ -434,7 +434,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     restoreSession();
-  }, []);
+  }, [restoreSession]);
 
   return (
     <AuthContext.Provider

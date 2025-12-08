@@ -15,7 +15,11 @@
       "Bash(npm run lint)",
       "Bash(npx expo install:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(move \"(tabs)\\gatepass.tsx\" \"(screens)\\gatepass.tsx\")",
+      "Bash(move \"(tabs)\\od-application.tsx\" \"(screens)\\od-application.tsx\")",
+      "Bash(move \"(tabs)\\wfh-application.tsx\" \"(screens)\\wfh-application.tsx\")",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

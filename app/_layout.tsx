@@ -13,6 +13,7 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
+    const inScreensGroup = segments[0] === "(screens)";
 
     // Check password reset FIRST (before authentication check)
     if (user?.require_password_reset) {
@@ -26,7 +27,8 @@ function RootLayoutNav() {
         router.replace("/(auth)/LoginScreen");
       }
     } else {
-      if (!inTabsGroup) {
+      // Allow navigation to screens group
+      if (!inTabsGroup && !inScreensGroup) {
         console.log('📍 Navigating to tabs - authenticated');
         router.replace("/(tabs)");
       }
@@ -37,6 +39,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(screens)" options={{ headerShown: false }} />
     </Stack>
   );
 }

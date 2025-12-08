@@ -30,16 +30,67 @@ const LoginScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
+  // Input validation helper
+  const validateInputs = (): { isValid: boolean; error?: string } => {
+    // Validate workspace URL
     if (!siteUrl && !workspaceUrl.trim()) {
-      Alert.alert("Error", "Please enter your Workspace URL.");
+      return { isValid: false, error: "Please enter your Workspace URL." };
+    }
+
+    // Validate workspace URL format
+    if (!siteUrl && workspaceUrl.trim()) {
+      const urlPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+      const cleanUrl = workspaceUrl.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (!urlPattern.test(cleanUrl)) {
+        return { isValid: false, error: "Please enter a valid Workspace URL format (e.g., your-site.frappe.cloud)." };
+      }
+    }
+
+    // Validate App ID
+    if (!appId.trim()) {
+      return { isValid: false, error: "Please enter your App ID." };
+    }
+
+    const trimmedAppId = appId.trim();
+
+    // Check App ID length
+    if (trimmedAppId.length < 3 || trimmedAppId.length > 50) {
+      return { isValid: false, error: "App ID must be between 3 and 50 characters." };
+    }
+
+    // Check for suspicious characters (prevent injection)
+    const appIdPattern = /^[a-zA-Z0-9@._-]+$/;
+    if (!appIdPattern.test(trimmedAppId)) {
+      return { isValid: false, error: "App ID contains invalid characters. Only letters, numbers, @, ., _, and - are allowed." };
+    }
+
+    // Validate password
+    if (!password.trim()) {
+      return { isValid: false, error: "Please enter your App Password." };
+    }
+
+    const trimmedPassword = password.trim();
+
+    // Check password length
+    if (trimmedPassword.length < 8 || trimmedPassword.length > 100) {
+      return { isValid: false, error: "Password must be between 8 and 100 characters." };
+    }
+
+    return { isValid: true };
+  };
+
+  const handleLogin = async () => {
+    // Validate inputs
+    const validation = validateInputs();
+    if (!validation.isValid) {
+      Alert.alert("Validation Error", validation.error || "Invalid input.");
       return;
     }
 
-    if (!appId.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter both App ID and App Password.");
-      return;
-    }
+    // Sanitize inputs by trimming
+    const sanitizedAppId = appId.trim();
+    const sanitizedPassword = password.trim();
+    const sanitizedWorkspaceUrl = workspaceUrl.trim();
 
     try {
       setIsLoading(true);
@@ -47,7 +98,7 @@ const LoginScreen = () => {
       let urlToUse = siteUrl;
 
       if (!siteUrl) {
-        const setupResult = await setupSiteUrl(workspaceUrl);
+        const setupResult = await setupSiteUrl(sanitizedWorkspaceUrl);
         if (!setupResult.success) {
           Alert.alert("Connection Failed", setupResult.error || "Unable to connect to workspace");
           setIsLoading(false);
@@ -56,7 +107,7 @@ const LoginScreen = () => {
         urlToUse = setupResult.url || null;
       }
 
-      const result = await login(appId, password, urlToUse || undefined);
+      const result = await login(sanitizedAppId, sanitizedPassword, urlToUse || undefined);
 
       if (!result.success) {
         Alert.alert(

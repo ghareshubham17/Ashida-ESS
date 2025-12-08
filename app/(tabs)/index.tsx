@@ -45,6 +45,27 @@ export default function HomeScreen() {
   // Quick Actions Configuration
   const quickActions: QuickAction[] = [
     {
+      id: 'gatepass',
+      title: 'Gatepass',
+      icon: 'exit-outline',
+      color: '#4CAF50',
+      onPress: () => router.push('/(screens)/GatepassApplication')
+    },
+    {
+      id: 'od',
+      title: 'OD Application',
+      icon: 'briefcase-outline',
+      color: '#2196F3',
+      onPress: () => router.push('/(screens)/ODApplication')
+    },
+    {
+      id: 'wfh',
+      title: 'WFH Application',
+      icon: 'home-outline',
+      color: '#FF9800',
+      onPress: () => router.push('/(screens)/WFHApplication')
+    },
+    {
       id: 'reports',
       title: 'View Reports',
       icon: 'bar-chart',
@@ -54,30 +75,9 @@ export default function HomeScreen() {
     {
       id: 'leave',
       title: 'Apply Leave',
-      icon: 'time',
-      color: '#4CAF50',
-      onPress: () => Alert.alert('Leave', 'Navigate to leave application')
-    },
-    {
-      id: 'salary',
-      title: 'Salary Slip',
-      icon: 'receipt',
-      color: '#2196F3',
-      onPress: () => Alert.alert('Salary Slip', 'Navigate to salary slip')
-    },
-    {
-      id: 'expense',
-      title: 'Expense Claim',
-      icon: 'card',
-      color: '#FF9800',
-      onPress: () => Alert.alert('Expense Claim', 'Navigate to expense claim')
-    },
-    {
-      id: 'directory',
-      title: 'Team Directory',
-      icon: 'people',
+      icon: 'time-outline',
       color: '#9C27B0',
-      onPress: () => Alert.alert('Team Directory', 'Navigate to team directory')
+      onPress: () => Alert.alert('Apply Leave', 'Navigate to leave application')
     },
     {
       id: 'holidays',
@@ -474,7 +474,7 @@ export default function HomeScreen() {
     return () => {
       isMounted = false;
     };
-  }, [user?.email]);
+  }, [user?.email, checkEmployeeExist]);
 
   // Render functions
   const renderCheckinStatus = () => {
@@ -652,7 +652,7 @@ export default function HomeScreen() {
               style={styles.calendarButton}
               onPress={() => {
                 // Set to November 2024
-                setCurrentMonth(new Date(2024, 10, 1)); // Month is 0-indexed, so 10 = November
+                setCurrentMonth(new Date(2025, 10, 1)); // Month is 0-indexed, so 10 = November
                 setShowCalendar(true);
               }}
               activeOpacity={0.8}

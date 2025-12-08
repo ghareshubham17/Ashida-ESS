@@ -67,4 +67,32 @@ export const validatePassword = (password: string): PasswordValidationResult => 
   };
 };
 
+/**
+ * Get user initials from full name
+ * @param fullName - User's full name
+ * @param fallback - Default value if name is not available
+ * @returns Initials (max 2 characters)
+ */
+export const getUserInitials = (fullName?: string | null, fallback: string = 'AS'): string => {
+  if (!fullName) return fallback;
+
+  return fullName
+    .split(' ')
+    .map((name) => name[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
+
+/**
+ * Get greeting based on current time of day
+ * @returns Greeting string (Good Morning, Good Afternoon, or Good Evening)
+ */
+export const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  return 'Good Evening';
+};
+
 // Add more utility functions here

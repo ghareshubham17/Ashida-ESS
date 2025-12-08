@@ -46,8 +46,15 @@ export const useFrappeService = () => {
 
       try {
         const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.message || errorJson.error || errorMessage;
+        console.error('API Error Response:', errorJson);
+        errorMessage = errorJson.message || errorJson.exc || errorJson.error || errorMessage;
+
+        // If there's an exception trace, log it
+        if (errorJson._server_messages) {
+          console.error('Server Messages:', errorJson._server_messages);
+        }
       } catch {
+        console.error('Raw Error Text:', errorText);
         errorMessage = errorText || errorMessage;
       }
 
@@ -71,7 +78,6 @@ export const useFrappeService = () => {
         const headers = await getAuthHeaders();
 
         const params = new URLSearchParams();
-        params.append('doctype', doctype);
 
         if (options?.fields) {
           params.append('fields', JSON.stringify(options.fields));
@@ -93,13 +99,14 @@ export const useFrappeService = () => {
           params.append('limit_page_length', options.limitPageLength.toString());
         }
 
-        const response = await fetch(
-          `${siteUrl}/api/resource/${doctype}?${params.toString()}`,
-          {
-            method: 'GET',
-            headers,
-          }
-        );
+        const url = `${siteUrl}/api/resource/${doctype}?${params.toString()}`;
+        console.log('Fetching from URL:', url);
+        console.log('Request options:', options);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+        });
 
         return await handleResponse<T[]>(response);
       } catch (err) {

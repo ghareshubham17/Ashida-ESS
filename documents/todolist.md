@@ -1,0 +1,1 @@
+## check is Allow Employee Self Service is checked or not on every app openning

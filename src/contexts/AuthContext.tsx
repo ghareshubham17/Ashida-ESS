@@ -1,8 +1,7 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
 import type { User } from '@/types';
+import * as Device from 'expo-device';
+import * as SecureStore from 'expo-secure-store';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -50,18 +49,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return storedDeviceId;
       }
 
-      // Generate a unique device ID based on device characteristics
-      // Put appId FIRST to ensure it's included in the final device ID
+      // Generate a STABLE device ID based ONLY on core hardware characteristics
+      // Only using characteristics that NEVER change for maximum stability
       const deviceFingerprint = [
-        appId || 'unknown',
-        Device.modelName || 'unknown',
-        Device.brand || 'unknown',
-        Device.osVersion || 'unknown',
-        Device.deviceName || 'unknown',
-        Constants.sessionId || Date.now().toString(),
+        appId || 'unknown',              // User's App ID
+        Device.modelName || 'unknown',   // Phone model (e.g., "iPhone 14")
+        Device.brand || 'unknown',       // Phone brand (e.g., "Apple")
+        Device.osName || 'unknown',      // OS type (e.g., "iOS", "Android")
       ].join('-');
 
-      console.log('Device fingerprint:', deviceFingerprint);
+      console.log('📱 Device fingerprint (4 core characteristics):', deviceFingerprint);
 
       // Create a hash-like ID (simplified base64 encoding)
       let deviceId: string;
@@ -78,13 +75,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Store it securely for future use
       await SecureStore.setItemAsync(storageKey, deviceId);
-      console.log(`📱 Generated new device ID for ${appId} using device fingerprint`);
+      console.log(`📱 Generated new device ID for ${appId}: ${deviceId.substring(0, 10)}...`);
 
       return deviceId;
     } catch (error) {
-      console.error('Error generating device ID:', error);
-      const fallbackId = Constants.sessionId?.substring(0, 32) || `fallback-${Date.now()}`;
-      console.warn('Using fallback device ID');
+      console.error('❌ Error generating device ID:', error);
+      // Fallback using same 4 core characteristics
+      const fallbackFingerprint = [
+        appId,
+        Device.modelName || 'unknown',
+        Device.brand || 'unknown',
+        Device.osName || 'unknown',
+      ].join('-');
+      const fallbackId = btoa(fallbackFingerprint).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+      console.warn('⚠️ Using fallback device ID');
       return fallbackId;
     }
   };
@@ -166,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     appPassword: string,
     urlOverride?: string
   ): Promise<{ success: boolean; error?: string }> => {
+    let deviceId = ''; // Define in outer scope for error handling
     try {
       const targetUrl = urlOverride || siteUrl;
 
@@ -173,16 +178,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: 'Site URL not configured' };
       }
 
-      const deviceId = await generateDeviceId(appId);
+      deviceId = await generateDeviceId(appId);
       const deviceModel = Device.modelName || 'unknown';
       const deviceBrand = Device.brand || 'unknown';
 
-      console.log('Attempting mobile app login at:', targetUrl);
-      console.log('App ID:', appId);
-      console.log('Device ID:', deviceId);
-      console.log('Device Info:', {
+      console.log('🔐 Attempting mobile app login at:', targetUrl);
+      console.log('👤 App ID:', appId);
+      console.log('📱 Device ID (first 10 chars):', deviceId.substring(0, 10) + '...');
+      console.log('📱 Full Device ID:', deviceId);
+      console.log('📱 Device Info (4 core characteristics):', {
+        appId: appId,
         model: deviceModel,
         brand: deviceBrand,
+        osName: Device.osName,
       });
 
       const response = await fetch(
@@ -270,7 +278,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           errorMessage = 'Invalid app password. Please try again.';
         } else if (error.message.includes('Access denied. This account is registered to a different device')) {
           console.log('🚫 Device mismatch - login blocked');
-          errorMessage = 'This account is registered to a different device. Please contact HR to reset device access.';
+          console.log('💡 If you recently cleared app data or reinstalled, you may need to reset device registration');
+          console.log('💡 Your current device ID:', deviceId.substring(0, 10) + '...');
+          errorMessage = 'Access denied. This account is registered to a different device.\n\nIf you recently cleared app data or reinstalled, please contact HR to reset your device registration.\n\nNote: Each account can only be used on one device for security purposes.';
         } else if (error.message.includes('Network')) {
           errorMessage = 'Network error. Please check your connection.';
         } else if (error.message.includes('timeout')) {

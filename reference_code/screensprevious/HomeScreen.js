@@ -1,8 +1,3 @@
-import { AttendanceCalendar, Navbar } from '@/components';
-import { darkTheme, lightTheme } from '@/constants/TabTheme';
-import { useAuth } from '@/contexts/AuthContext';
-import { useFrappeService } from '@/services/frappeService';
-import type { Employee, EmployeeCheckin, GreetingIcon, QuickAction } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
@@ -11,26 +6,28 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  I18nManager,
+  Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
+import { useAuth } from '../_contexts/AuthContext';
+import { useFrappeService } from '../_services/frappeService';
+import AttendanceCalendar from '../components/AttendanceCalendar';
 
-export default function HomeScreen() {
+const { width } = Dimensions.get('window');
+
+const HomeScreen = () => {
   const router = useRouter();
   const { user } = useAuth();
   const frappeService = useFrappeService();
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   // State management
-  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-  const [todayCheckins, setTodayCheckins] = useState<EmployeeCheckin[]>([]);
+  const [currentEmployee, setCurrentEmployee] = useState(null);
+  const [todayCheckins, setTodayCheckins] = useState([]);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState('');
   const [checkInLoading, setCheckInLoading] = useState(false);
@@ -38,25 +35,21 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Calendar state
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-
   // Quick Actions Configuration
-  const quickActions: QuickAction[] = [
+  const quickActions = [
     {
       id: 'reports',
       title: 'View Reports',
       icon: 'bar-chart',
-      color: theme.colors.primary,
-      onPress: () => Alert.alert('Reports', 'Navigate to reports screen')
+      color: '#6366F1',
+      onPress: () => router.push('/(screens)/ReportsScreen')
     },
     {
       id: 'leave',
       title: 'Apply Leave',
       icon: 'time',
       color: '#4CAF50',
-      onPress: () => Alert.alert('Leave', 'Navigate to leave application')
+      onPress: () => router.push('/(screens)/LeaveApplicationScreen')
     },
     {
       id: 'salary',
@@ -84,12 +77,16 @@ export default function HomeScreen() {
       title: 'Holidays',
       icon: 'calendar',
       color: '#FF5722',
-      onPress: () => Alert.alert('Holidays', 'Navigate to holidays screen')
+      onPress: () => router.push('/(screens)/HolidaysScreen')
     }
   ];
 
+  // Calendar related state
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
   // Utility functions
-  const formatTimestamp = (): string => {
+  const formatTimestamp = () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -112,7 +109,7 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const formatTime = (timeString: string): string => {
+  const formatTime = (timeString) => {
     const time = new Date(timeString);
     return time.toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -122,7 +119,7 @@ export default function HomeScreen() {
   };
 
   // Get dynamic greeting based on time of day
-  const getGreeting = (): string => {
+  const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) {
       return 'Good Morning';
@@ -136,31 +133,31 @@ export default function HomeScreen() {
   };
 
   // Get dynamic icon based on time of day
-  const getGreetingIcon = (): GreetingIcon => {
+  const getGreetingIcon = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) {
-      return { name: 'sunny', color: '#FF9800' };
+      return { name: 'sunny', color: '#FF9800' }; // Morning - orange sun
     } else if (hour >= 12 && hour < 17) {
-      return { name: 'sunny-outline', color: '#FFC107' };
+      return { name: 'sunny-outline', color: '#FFC107' }; // Afternoon - bright sun
     } else if (hour >= 17 && hour < 21) {
-      return { name: 'partly-sunny', color: '#FF6F00' };
+      return { name: 'partly-sunny', color: '#FF6F00' }; // Evening - sunset
     } else {
-      return { name: 'moon', color: '#7B1FA2' };
+      return { name: 'moon', color: '#7B1FA2' }; // Night - moon
     }
   };
 
   // Core functions
-  const checkTodayCheckinStatus = useCallback(async (employeeName: string) => {
+  const checkTodayCheckinStatus = useCallback(async (employeeName) => {
     try {
       const { startTime, endTime } = getTodayDateRange();
 
-      const checkins = await frappeService.getList<EmployeeCheckin>('Employee Checkin', {
+      const checkins = await frappeService.getList('Employee Checkin', {
         fields: ['name', 'employee', 'time', 'log_type', 'creation'],
         filters: {
           employee: employeeName,
           creation: ['between', [startTime, endTime]]
         },
-        orderBy: 'creation asc'
+        order_by: 'creation asc'
       });
 
       console.log('Today checkins:', checkins);
@@ -177,19 +174,23 @@ export default function HomeScreen() {
         } else if (inLog) {
           setShowCheckButton(true);
 
+          // Try to get time from the inLog (time field or creation field)
           let checkinTime = inLog.time || inLog.creation;
 
+          // If still missing, fetch the full document
           if (!checkinTime) {
             console.log('Time field missing in list response, fetching full document:', inLog.name);
             try {
-              const fullDoc = await frappeService.getDoc<EmployeeCheckin>('Employee Checkin', inLog.name);
+              const fullDoc = await frappeService.getDoc('Employee Checkin', inLog.name);
               console.log('Full checkin document:', fullDoc);
+              // Try time field first, fall back to creation
               checkinTime = fullDoc.time || fullDoc.creation;
             } catch (fetchError) {
               console.error('Error fetching full checkin document:', fetchError);
             }
           }
 
+          // Parse the time from Frappe (format can be "DD-MM-YYYY HH:MM:SS" or "YYYY-MM-DD HH:MM:SS")
           try {
             console.log('Raw check-in time from DB:', checkinTime);
 
@@ -201,27 +202,33 @@ export default function HomeScreen() {
             }
 
             const timeStr = String(checkinTime);
-            let parsedDate: Date;
+
+            // Check if format is "DD-MM-YYYY HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+            let parsedDate;
 
             if (timeStr.includes(' ')) {
+              // Split date and time parts
               const [datePart, timePart] = timeStr.split(' ');
 
               if (datePart.includes('-')) {
                 const parts = datePart.split('-');
 
+                // Check if it's DD-MM-YYYY or YYYY-MM-DD format
                 if (parts[0].length === 4) {
+                  // YYYY-MM-DD format
                   parsedDate = new Date(timeStr.replace(' ', 'T'));
                 } else {
+                  // DD-MM-YYYY format - convert to YYYY-MM-DD
                   const [day, month, year] = parts;
                   parsedDate = new Date(`${year}-${month}-${day}T${timePart}`);
                 }
-              } else {
-                parsedDate = new Date(timeStr);
               }
             } else {
+              // Try direct parsing
               parsedDate = new Date(timeStr);
             }
 
+            // Check if date is valid
             if (!parsedDate || isNaN(parsedDate.getTime())) {
               throw new Error('Invalid date');
             }
@@ -236,9 +243,10 @@ export default function HomeScreen() {
             setCheckInTime(formattedTime);
           } catch (error) {
             console.error('Error parsing check-in time:', error, checkinTime);
+            // Fallback: extract just the time portion and manually format
             try {
               const timeStr = String(checkinTime);
-              const timePart = timeStr.split(' ')[1];
+              const timePart = timeStr.split(' ')[1]; // Get "HH:MM:SS" part
               if (timePart) {
                 const [hours, minutes] = timePart.split(':');
                 const hour = parseInt(hours);
@@ -284,10 +292,10 @@ export default function HomeScreen() {
     try {
       console.log('Checking employee for user:', user.email);
 
-      const employees = await frappeService.getList<Employee>('Employee', {
+      const employees = await frappeService.getList('Employee', {
         fields: ['name', 'employee_name', 'user_id', 'status'],
         filters: { user_id: user.email },
-        limitPageLength: 1
+        limit: 1
       });
 
       if (employees && employees.length > 0) {
@@ -305,7 +313,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Error checking employee:', error);
       if (!refreshing) {
-        Alert.alert('Error', 'Failed to check employee status: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        Alert.alert('Error', 'Failed to check employee status: ' + error.message);
       }
       setShowCheckButton(false);
       setCurrentEmployee(null);
@@ -320,16 +328,20 @@ export default function HomeScreen() {
 
     setCheckInLoading(true);
     try {
-      const logType: 'IN' | 'OUT' = isCheckedIn ? 'OUT' : 'IN';
+      const logType = isCheckedIn ? 'OUT' : 'IN';
       const timestamp = formatTimestamp();
 
-      let locationString: string | null = null;
+      // Get location data and format for device_id field
+      let locationString = null;
       let hasLocation = false;
 
+      // Capture fresh GPS location for both CHECK-IN and CHECK-OUT
       try {
+        // Request location permissions
         const { status } = await Location.requestForegroundPermissionsAsync();
 
         if (status === 'granted') {
+          // Get current position
           const location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
           });
@@ -339,8 +351,10 @@ export default function HomeScreen() {
 
           console.log(`Location captured for ${isCheckedIn ? 'check-out' : 'check-in'}:`, { lat: latitude, lng: longitude });
 
+          // Build location string starting with coordinates
           let locationParts = [`${latitude}, ${longitude}`];
 
+          // Try to get address from coordinates (reverse geocoding)
           try {
             const [address] = await Location.reverseGeocodeAsync({
               latitude: location.coords.latitude,
@@ -348,6 +362,7 @@ export default function HomeScreen() {
             });
 
             if (address) {
+              // Build address components
               const addressComponents = [];
 
               if (address.name) addressComponents.push(address.name);
@@ -371,8 +386,10 @@ export default function HomeScreen() {
             }
           } catch (geocodeError) {
             console.warn('Could not get address from coordinates:', geocodeError);
+            // Continue with just coordinates
           }
 
+          // Combine coordinates and address into single string
           locationString = locationParts.join(' | ');
           hasLocation = true;
 
@@ -388,6 +405,7 @@ export default function HomeScreen() {
         }
       } catch (locationError) {
         console.error('Error getting location:', locationError);
+        // Continue with check-in/out even if location fails
       }
 
       console.log('Creating checkin record:', {
@@ -397,11 +415,11 @@ export default function HomeScreen() {
         device_id: locationString
       });
 
-      const result = await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
+      const result = await frappeService.createDoc('Employee Checkin', {
         employee: currentEmployee.name,
         time: timestamp,
         log_type: logType,
-        device_id: locationString,
+        device_id: locationString, // Store location in device_id field
       });
 
       console.log('Checkin result:', result);
@@ -409,6 +427,7 @@ export default function HomeScreen() {
       if (result) {
         if (!isCheckedIn) {
           setIsCheckedIn(true);
+          // Use the timestamp to set check-in time
           const time = new Date(timestamp);
           const formattedTime = time.toLocaleTimeString('en-US', {
             hour: '2-digit',
@@ -420,7 +439,7 @@ export default function HomeScreen() {
 
           let successMessage = `Successfully checked in at ${formatTime(result.creation || timestamp)}`;
           if (hasLocation) {
-            successMessage += `\nLocation captured`;
+            successMessage += `\n📍 Location captured`;
           }
 
           Alert.alert('Success', successMessage);
@@ -431,7 +450,7 @@ export default function HomeScreen() {
 
           let successMessage = 'Successfully checked out. Have a great day!';
           if (hasLocation) {
-            successMessage += '\nLocation captured';
+            successMessage += '\n📍 Location captured';
           }
 
           Alert.alert('Success', successMessage);
@@ -441,11 +460,11 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Checkin error:', error);
-      Alert.alert('Error', `Failed to ${isCheckedIn ? 'check out' : 'check in'}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      Alert.alert('Error', `Failed to ${isCheckedIn ? 'check out' : 'check in'}: ${error.message}`);
     } finally {
       setCheckInLoading(false);
     }
-  }, [currentEmployee, isCheckedIn, frappeService, checkTodayCheckinStatus]);
+  }, [currentEmployee, isCheckedIn, frappeService, checkTodayCheckinStatus, formatTimestamp]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -480,12 +499,12 @@ export default function HomeScreen() {
   const renderCheckinStatus = () => {
     if (!currentEmployee) {
       return (
-        <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.statusContainer}>
           <View style={styles.statusIconContainer}>
             <Ionicons name="alert-circle" size={32} color="#F44336" />
           </View>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>Employee Not Found</Text>
-          <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
+          <Text style={styles.statusText}>Employee Not Found</Text>
+          <Text style={styles.statusSubtext}>
             Please contact HR or try refreshing the page.
           </Text>
         </View>
@@ -494,12 +513,12 @@ export default function HomeScreen() {
 
     if (!showCheckButton) {
       return (
-        <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.statusContainer}>
           <View style={styles.statusIconContainer}>
             <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
           </View>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>Work Day Complete!</Text>
-          <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
+          <Text style={styles.statusText}>Work Day Complete!</Text>
+          <Text style={styles.statusSubtext}>
             You've successfully completed your work day. Have a great evening!
           </Text>
         </View>
@@ -510,27 +529,27 @@ export default function HomeScreen() {
     const greetingIcon = getGreetingIcon();
 
     return (
-      <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.statusContainer}>
         {isCheckedIn ? (
           <>
             <View style={styles.statusIconContainer}>
               <Ionicons name="checkmark-done-circle" size={32} color="#4CAF50" />
             </View>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>Already Checked In!</Text>
-            <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.statusText}>Already Checked In!</Text>
+            <Text style={styles.statusSubtext}>
               You started your day at <Text style={styles.timeHighlight}>{checkInTime}</Text>
             </Text>
-            <Text style={[styles.statusReminder, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.statusReminder}>
               Don't forget to check out when you're done!
             </Text>
           </>
         ) : (
           <>
             <View style={styles.statusIconContainer}>
-              <Ionicons name={greetingIcon.name as any} size={32} color={greetingIcon.color} />
+              <Ionicons name={greetingIcon.name} size={32} color={greetingIcon.color} />
             </View>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>{greeting}!</Text>
-            <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
+            <Text style={styles.statusText}>{greeting}!</Text>
+            <Text style={styles.statusSubtext}>
               You haven't checked in today. Ready to start your day?
             </Text>
           </>
@@ -539,28 +558,22 @@ export default function HomeScreen() {
     );
   };
 
-  const renderQuickAction = (action: QuickAction) => (
+  const renderQuickAction = (action) => (
     <TouchableOpacity
       key={action.id}
       style={styles.quickActionItem}
       onPress={action.onPress}
       activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${action.title} quick action`}
     >
       <View style={[styles.quickActionIcon, { backgroundColor: action.color }]}>
-        <Ionicons name={action.icon as any} size={24} color="#fff" />
+        <Ionicons name={action.icon} size={24} color="#fff" />
       </View>
-      <Text style={[styles.quickActionText, { color: theme.colors.text }]}>{action.title}</Text>
+      <Text style={styles.quickActionText}>{action.title}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Navbar */}
-      <Navbar onProfilePress={() => router.push('/(tabs)/profile')} />
-
-      {/* Main Content */}
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
@@ -568,10 +581,10 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.colors.primary, theme.colors.activeTab]}
-            tintColor={theme.colors.primary}
+            colors={['#667eea', '#764ba2']}
+            tintColor="#667eea"
             title="Pull to refresh"
-            titleColor={theme.colors.primary}
+            titleColor="#667eea"
           />
         }
         showsVerticalScrollIndicator={false}
@@ -579,7 +592,7 @@ export default function HomeScreen() {
         {/* Welcome Card */}
         <View style={styles.welcomeCard}>
           <LinearGradient
-            colors={[theme.colors.primary, theme.colors.activeTab]}
+            colors={['#667eea', '#764ba2']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.welcomeGradient}
@@ -587,7 +600,7 @@ export default function HomeScreen() {
             <View style={styles.welcomeContent}>
               <Text style={styles.welcomeText}>Welcome back,</Text>
               <Text style={styles.welcomeName}>
-                {currentEmployee?.employee_name || user?.employee_name || 'User'}
+                {currentEmployee?.employee_name || user?.full_name || user?.name || 'User'}
               </Text>
               <Text style={styles.lastRefreshText}>
                 Last updated: {lastRefresh.toLocaleTimeString()}
@@ -596,11 +609,31 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
+         {/* Welcome Card */}
+        {/* <View style={styles.welcomeCard}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.welcomeGradient}
+          >
+            <View style={styles.welcomeContent}>
+              <Text style={styles.welcomeText}>Welcome back,</Text>
+              <Text style={styles.welcomeName}>
+                {currentEmployee?.employee_name || user?.full_name || user?.name || 'User'}
+              </Text>
+              <Text style={styles.lastRefreshText}>
+                Last updated: {lastRefresh.toLocaleTimeString()}
+              </Text>
+            </View>
+          </LinearGradient>
+        </View> */}
+
         {/* Check-in/Check-out Card */}
-        <View style={[styles.checkinCard, { backgroundColor: theme.colors.card }]}>
+        <View style={styles.checkinCard}>
           <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Attendance</Text>
-            <Ionicons name="time" size={24} color={theme.colors.primary} />
+            <Text style={styles.cardTitle}>Attendance</Text>
+            <Ionicons name="time" size={24} color="#667eea" />
           </View>
 
           {renderCheckinStatus()}
@@ -615,9 +648,6 @@ export default function HomeScreen() {
                 checkInLoading && styles.checkinButtonDisabled
               ]}
               activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={isCheckedIn ? "Check out button" : "Check in button"}
-              accessibilityState={{ disabled: checkInLoading }}
             >
               <LinearGradient
                 colors={isCheckedIn ? ['#F44336', '#D32F2F'] : ['#4CAF50', '#388E3C']}
@@ -651,16 +681,13 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.calendarButton}
               onPress={() => {
-                // Set to November 2024
-                setCurrentMonth(new Date(2024, 10, 1)); // Month is 0-indexed, so 10 = November
+                setCurrentMonth(new Date()); // Always reset to current month
                 setShowCalendar(true);
               }}
               activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="View attendance calendar"
             >
               <LinearGradient
-                colors={[theme.colors.primary, theme.colors.activeTab]}
+                colors={['#667eea', '#764ba2']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.calendarButtonGradient}
@@ -674,10 +701,10 @@ export default function HomeScreen() {
 
         {/* Quick Actions Card */}
         {currentEmployee && (
-          <View style={[styles.quickActionsCard, { backgroundColor: theme.colors.card }]}>
+          <View style={styles.quickActionsCard}>
             <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Quick Actions</Text>
-              <Ionicons name="apps" size={24} color={theme.colors.primary} />
+              <Text style={styles.cardTitle}>Quick Actions</Text>
+              <Ionicons name="apps" size={24} color="#667eea" />
             </View>
             <View style={styles.quickActionsGrid}>
               {quickActions.map(renderQuickAction)}
@@ -687,7 +714,7 @@ export default function HomeScreen() {
 
       </ScrollView>
 
-      {/* Attendance Calendar Modal */}
+      {/* Calendar Modal */}
       <AttendanceCalendar
         visible={showCalendar}
         onClose={() => setShowCalendar(false)}
@@ -697,17 +724,18 @@ export default function HomeScreen() {
       />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f7fa',
   },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
-    paddingBottom: 100,
+    paddingBottom: 16,
   },
   welcomeCard: {
     marginHorizontal: 20,
@@ -744,6 +772,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
   },
   checkinCard: {
+    backgroundColor: '#fff',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 16,
@@ -763,10 +792,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
   },
   statusContainer: {
     alignItems: 'center',
     paddingVertical: 24,
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     marginBottom: 16,
   },
@@ -776,10 +807,12 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#222',
     marginBottom: 4,
   },
   statusSubtext: {
     fontSize: 14,
+    color: '#666',
     textAlign: 'center',
     paddingHorizontal: 20,
     lineHeight: 20,
@@ -790,6 +823,7 @@ const styles = StyleSheet.create({
   },
   statusReminder: {
     fontSize: 12,
+    color: '#999',
     marginTop: 8,
     fontStyle: 'italic',
   },
@@ -842,6 +876,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   quickActionsCard: {
+    backgroundColor: '#fff',
     marginHorizontal: 20,
     marginBottom: 16,
     borderRadius: 16,
@@ -878,8 +913,10 @@ const styles = StyleSheet.create({
   },
   quickActionText: {
     fontSize: 12,
+    color: '#333',
     textAlign: 'center',
     fontWeight: '500',
-    writingDirection: I18nManager.isRTL ? 'rtl' : 'ltr',
   },
 });
+
+export default HomeScreen;

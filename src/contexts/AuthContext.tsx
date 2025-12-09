@@ -1,6 +1,6 @@
 import type { User } from '@/types';
 import * as Device from 'expo-device';
-import * as SecureStore from 'expo-secure-store';
+import { secureStorage } from '@/utils/secureStorage';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 interface AuthContextType {
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const generateDeviceId = async (appId: string): Promise<string> => {
     try {
       const storageKey = `${SECURE_STORE_KEYS.DEVICE_ID_PREFIX}${appId}`;
-      const storedDeviceId = await SecureStore.getItemAsync(storageKey);
+      const storedDeviceId = await secureStorage.getItemAsync(storageKey);
 
       if (storedDeviceId) {
         console.log(`📱 Retrieved existing device ID for ${appId} from storage`);
@@ -74,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Store it securely for future use
-      await SecureStore.setItemAsync(storageKey, deviceId);
+      await secureStorage.setItemAsync(storageKey, deviceId);
       console.log(`📱 Generated new device ID for ${appId}: ${deviceId.substring(0, 10)}...`);
 
       return deviceId;
@@ -126,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.status === 403 || response.status === 200) {
         // 403 means site exists but we're not authenticated (expected)
         // 200 means site exists and might have cached credentials
-        await SecureStore.setItemAsync(SECURE_STORE_KEYS.SITE_URL, formattedUrl);
+        await secureStorage.setItemAsync(SECURE_STORE_KEYS.SITE_URL, formattedUrl);
         setSiteUrl(formattedUrl);
 
         console.log('Site URL configured successfully:', formattedUrl);
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetSiteUrl = async (): Promise<void> => {
     try {
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.SITE_URL);
+      await secureStorage.deleteItemAsync(SECURE_STORE_KEYS.SITE_URL);
       await clearAuthData();
       setSiteUrl(null);
       console.log('Site URL reset successfully');
@@ -238,9 +238,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             require_password_reset: require_password_reset === 1,
           };
 
-          await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER_DATA, JSON.stringify(userObject));
-          await SecureStore.setItemAsync(SECURE_STORE_KEYS.API_KEY, api_key);
-          await SecureStore.setItemAsync(SECURE_STORE_KEYS.API_SECRET, api_secret);
+          await secureStorage.setItemAsync(SECURE_STORE_KEYS.USER_DATA, JSON.stringify(userObject));
+          await secureStorage.setItemAsync(SECURE_STORE_KEYS.API_KEY, api_key);
+          await secureStorage.setItemAsync(SECURE_STORE_KEYS.API_SECRET, api_secret);
 
           setUser(userObject);
 
@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const updatedUser = { ...user, require_password_reset: false };
-      await SecureStore.setItemAsync(SECURE_STORE_KEYS.USER_DATA, JSON.stringify(updatedUser));
+      await secureStorage.setItemAsync(SECURE_STORE_KEYS.USER_DATA, JSON.stringify(updatedUser));
       setUser(updatedUser);
       setIsAuthenticated(true);
 
@@ -353,10 +353,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
 
-      const storedUrl = await SecureStore.getItemAsync(SECURE_STORE_KEYS.SITE_URL);
-      const storedUserData = await SecureStore.getItemAsync(SECURE_STORE_KEYS.USER_DATA);
-      const storedApiKey = await SecureStore.getItemAsync(SECURE_STORE_KEYS.API_KEY);
-      const storedApiSecret = await SecureStore.getItemAsync(SECURE_STORE_KEYS.API_SECRET);
+      const storedUrl = await secureStorage.getItemAsync(SECURE_STORE_KEYS.SITE_URL);
+      const storedUserData = await secureStorage.getItemAsync(SECURE_STORE_KEYS.USER_DATA);
+      const storedApiKey = await secureStorage.getItemAsync(SECURE_STORE_KEYS.API_KEY);
+      const storedApiSecret = await secureStorage.getItemAsync(SECURE_STORE_KEYS.API_SECRET);
 
       if (storedUrl) {
         setSiteUrl(storedUrl);
@@ -421,9 +421,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearAuthData = async () => {
     try {
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.USER_DATA);
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.API_KEY);
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.API_SECRET);
+      await secureStorage.deleteItemAsync(SECURE_STORE_KEYS.USER_DATA);
+      await secureStorage.deleteItemAsync(SECURE_STORE_KEYS.API_KEY);
+      await secureStorage.deleteItemAsync(SECURE_STORE_KEYS.API_SECRET);
     } catch (error) {
       console.error('Failed to clear stored data:', error);
     }

@@ -114,7 +114,7 @@ export default function ProfileScreen() {
             icon="person-outline"
             title="Profile Details"
             subtitle="View your complete employee information"
-            onPress={() => handleSettingPress('Profile Details')}
+            onPress={() => router.push('/(screens)/ProfileDetailsScreen')}
           />
 
           <ProfileItem

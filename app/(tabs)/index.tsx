@@ -47,21 +47,21 @@ export default function HomeScreen() {
     {
       id: 'gatepass',
       title: 'Gatepass',
-      icon: 'exit-outline',
+      icon: 'exit-outline' as keyof typeof Ionicons.glyphMap,
       color: '#4CAF50',
       onPress: () => router.push('/(screens)/GatepassApplication')
     },
     {
       id: 'od',
       title: 'OD Application',
-      icon: 'briefcase-outline',
+      icon: 'briefcase-outline' as keyof typeof Ionicons.glyphMap,
       color: '#2196F3',
       onPress: () => router.push('/(screens)/ODApplication')
     },
     {
       id: 'wfh',
       title: 'WFH Application',
-      icon: 'home-outline',
+      icon: 'home-outline' as keyof typeof Ionicons.glyphMap,
       color: '#FF9800',
       onPress: () => router.push('/(screens)/WFHApplication')
     },
@@ -75,16 +75,16 @@ export default function HomeScreen() {
     {
       id: 'leave',
       title: 'Apply Leave',
-      icon: 'time-outline',
+      icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
       color: '#9C27B0',
-      onPress: () => Alert.alert('Apply Leave', 'Navigate to leave application')
+      onPress: () => router.push('/(screens)/LeaveApplicationScreen')
     },
     {
       id: 'holidays',
       title: 'Holidays',
-      icon: 'calendar',
+      icon: 'calendar' as keyof typeof Ionicons.glyphMap,
       color: '#FF5722',
-      onPress: () => Alert.alert('Holidays', 'Navigate to holidays screen')
+      onPress: () => router.push('/(screens)/HolidaysScreen')
     }
   ];
 
@@ -273,6 +273,7 @@ export default function HomeScreen() {
       throw error;
     }
   }, [getTodayDateRange, frappeService]);
+
 
   const checkEmployeeExist = useCallback(async () => {
     if (!user?.email) {

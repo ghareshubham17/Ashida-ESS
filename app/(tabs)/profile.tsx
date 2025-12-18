@@ -1,3 +1,10 @@
+import { Navbar } from '@/components';
+import { COLORS } from '@/constants';
+import { darkTheme, lightTheme } from '@/constants/TabTheme';
+import { useAuth } from '@/contexts/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
   Alert,
@@ -10,13 +17,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Navbar } from '@/components';
-import { useAuth } from '@/contexts/AuthContext';
-import { COLORS } from '@/constants';
-import { lightTheme, darkTheme } from '@/constants/TabTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +33,11 @@ export default function ProfileScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+
+  // Toggle these flags to show/hide sections
+  const SHOW_PRIVACY_SECURITY = false;
+  const SHOW_NOTIFICATIONS = false;
+  const SHOW_APP_SETTINGS = false;
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -117,46 +122,52 @@ export default function ProfileScreen() {
             onPress={() => router.push('/(screens)/ProfileDetailsScreen')}
           />
 
-          <ProfileItem
-            icon="shield-checkmark-outline"
-            title="Privacy & Security"
-            subtitle="Manage your privacy settings"
-            onPress={() => handleSettingPress('Privacy & Security')}
-          />
+          {SHOW_PRIVACY_SECURITY && (
+            <ProfileItem
+              icon="shield-checkmark-outline"
+              title="Privacy & Security"
+              subtitle="Manage your privacy settings"
+              onPress={() => handleSettingPress('Privacy & Security')}
+            />
+          )}
 
-          <ProfileItem
-            icon="notifications-outline"
-            title="Notifications"
-            subtitle="Configure push notifications"
-            onPress={() => handleSettingPress('Notifications')}
-          />
+          {SHOW_NOTIFICATIONS && (
+            <ProfileItem
+              icon="notifications-outline"
+              title="Notifications"
+              subtitle="Configure push notifications"
+              onPress={() => handleSettingPress('Notifications')}
+            />
+          )}
         </View>
 
         {/* App Settings */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>App Settings</Text>
+        {SHOW_APP_SETTINGS && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>App Settings</Text>
 
-          <ProfileItem
-            icon="color-palette-outline"
-            title="Theme"
-            subtitle={colorScheme === 'dark' ? 'Dark mode' : 'Light mode'}
-            onPress={() => handleSettingPress('Theme')}
-          />
+            <ProfileItem
+              icon="color-palette-outline"
+              title="Theme"
+              subtitle={colorScheme === 'dark' ? 'Dark mode' : 'Light mode'}
+              onPress={() => handleSettingPress('Theme')}
+            />
 
-          <ProfileItem
-            icon="language-outline"
-            title="Language"
-            subtitle="English"
-            onPress={() => handleSettingPress('Language')}
-          />
+            <ProfileItem
+              icon="language-outline"
+              title="Language"
+              subtitle="English"
+              onPress={() => handleSettingPress('Language')}
+            />
 
-          <ProfileItem
-            icon="download-outline"
-            title="Offline Data"
-            subtitle="Sync and storage settings"
-            onPress={() => handleSettingPress('Offline Data')}
-          />
-        </View>
+            <ProfileItem
+              icon="download-outline"
+              title="Offline Data"
+              subtitle="Sync and storage settings"
+              onPress={() => handleSettingPress('Offline Data')}
+            />
+          </View>
+        )}
 
         {/* Connection Info */}
         <View style={styles.section}>
@@ -164,7 +175,7 @@ export default function ProfileScreen() {
 
           <ProfileItem
             icon="globe-outline"
-            title="Frappe Site"
+            title="Gaxis URL"
             subtitle={
               siteUrl
                 ? siteUrl.replace('https://', '').replace('http://', '')

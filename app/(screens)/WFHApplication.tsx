@@ -402,54 +402,6 @@ export default function WFHApplicationScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Employee ID (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Employee ID <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {employee || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Employee Name (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Employee Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {employeeName || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Department (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Department <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {department || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Attendance Device ID (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Attendance Device ID
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {attendanceDeviceId || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
             {/* WFH Start Date */}
             <View style={styles.fieldContainer}>
               <Text style={[styles.label, { color: theme.colors.text }]}>

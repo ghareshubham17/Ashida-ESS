@@ -22,26 +22,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // Type Definitions
 type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Open';
 
-interface ODApplication {
+interface WFHApplication {
   id: string;
   employee: string;
   employee_name: string;
-  od_start_date: string;
-  od_end_date: string;
-  od_type: string;
-  od_type_description: string;
-  per_day_rate: number;
-  location: string;
+  wfh_start_date: string;
+  wfh_end_date: string;
+  purpose_of_wfh: string;
   approval_status: ApprovalStatus;
   date_of_application: string;
-  approved_by?: string;
   date_of_approval?: string;
-  rejected_by?: string;
-  date_of_rejection?: string;
   reason_for_rejection?: string;
 }
 
-export default function ODApplicationList() {
+export default function WFHApplicationList() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -56,7 +50,7 @@ export default function ODApplicationList() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Pagination state
-  const [odApplications, setOdApplications] = useState<ODApplication[]>([]);
+  const [wfhApplications, setWfhApplications] = useState<WFHApplication[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
@@ -64,15 +58,15 @@ export default function ODApplicationList() {
 
   const PAGE_SIZE = 20;
 
-  // Fetch OD applications from API with pagination
-  const fetchODApplications = useCallback(async (pageNum: number = 0, isRefresh: boolean = false) => {
+  // Fetch WFH applications from API with pagination
+  const fetchWFHApplications = useCallback(async (pageNum: number = 0, isRefresh: boolean = false) => {
     try {
       if (pageNum === 0) {
         setIsLoadingApplications(true);
       }
       setApplicationsError(null);
 
-      console.log(`Fetching OD applications - Page: ${pageNum}, Status: ${selectedStatus}, Sort: ${sortOrder}`);
+      console.log(`Fetching WFH applications - Page: ${pageNum}, Status: ${selectedStatus}, Sort: ${sortOrder}`);
 
       // Build filters
       const filters: any[] = [
@@ -84,24 +78,18 @@ export default function ODApplicationList() {
         filters.push(['approval_status', '=', selectedStatus]);
       }
 
-      // Fetch OD Applications with pagination
-      const odApps = await frappeService.getList<any>('OD Application', {
+      // Fetch WFH Applications with pagination
+      const wfhApps = await frappeService.getList<any>('Work From Home Application', {
         fields: [
           'name',
           'employee',
           'employee_name',
-          'od_start_date',
-          'od_end_date',
-          'od_type',
-          'od_type_description',
-          'per_day_rate',
-          'location',
+          'wfh_start_date',
+          'wfh_end_date',
+          'purpose_of_wfh',
           'approval_status',
           'creation',
-          'approved_by',
           'date_of_approval',
-          'rejected_by',
-          'date_of_rejection',
           'reason_for_rejection'
         ],
         filters: filters,
@@ -110,43 +98,37 @@ export default function ODApplicationList() {
         orderBy: `creation ${sortOrder}`
       });
 
-      console.log(`Fetched ${odApps.length} OD Applications for page ${pageNum}`);
+      console.log(`Fetched ${wfhApps.length} WFH Applications for page ${pageNum}`);
 
       // Transform applications
-      const transformedApps: ODApplication[] = odApps.map((app: any): ODApplication => ({
+      const transformedApps: WFHApplication[] = wfhApps.map((app: any): WFHApplication => ({
         id: app.name,
         employee: app.employee,
         employee_name: app.employee_name,
-        od_start_date: app.od_start_date,
-        od_end_date: app.od_end_date,
-        od_type: app.od_type,
-        od_type_description: app.od_type_description,
-        per_day_rate: app.per_day_rate,
-        location: app.location,
+        wfh_start_date: app.wfh_start_date,
+        wfh_end_date: app.wfh_end_date,
+        purpose_of_wfh: app.purpose_of_wfh,
         approval_status: app.approval_status,
         date_of_application: app.creation?.split(' ')[0] || new Date().toISOString().split('T')[0],
-        approved_by: app.approved_by,
         date_of_approval: app.date_of_approval,
-        rejected_by: app.rejected_by,
-        date_of_rejection: app.date_of_rejection,
         reason_for_rejection: app.reason_for_rejection
       }));
 
       // Update state
       if (isRefresh || pageNum === 0) {
-        setOdApplications(transformedApps);
+        setWfhApplications(transformedApps);
       } else {
-        setOdApplications(prev => [...prev, ...transformedApps]);
+        setWfhApplications(prev => [...prev, ...transformedApps]);
       }
 
       // Check if there are more records
-      setHasMore(odApps.length === PAGE_SIZE);
+      setHasMore(wfhApps.length === PAGE_SIZE);
       setCurrentPage(pageNum);
     } catch (err: any) {
-      console.error('Error fetching OD applications:', err);
+      console.error('Error fetching WFH applications:', err);
 
       // Provide user-friendly error messages based on error type
-      let errorMessage = 'Failed to fetch OD applications';
+      let errorMessage = 'Failed to fetch WFH applications';
 
       if (err.message?.toLowerCase().includes('network') ||
           err.message?.toLowerCase().includes('fetch')) {
@@ -167,7 +149,7 @@ export default function ODApplicationList() {
       // If it's the first load and there's an error, keep empty array
       // If loading more pages fails, show alert and keep existing data
       if (pageNum === 0) {
-        setOdApplications([]);
+        setWfhApplications([]);
       } else {
         // Show alert for load more failures
         Alert.alert(
@@ -185,21 +167,21 @@ export default function ODApplicationList() {
 
   // Fetch applications on mount and when filters/sort change
   useEffect(() => {
-    fetchODApplications(0, false);
+    fetchWFHApplications(0, false);
   }, [selectedStatus, sortOrder]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchODApplications(0, true);
-  }, [fetchODApplications]);
+    await fetchWFHApplications(0, true);
+  }, [fetchWFHApplications]);
 
   // Load more handler - fetch next page from API
   const onLoadMore = useCallback(() => {
     if (loadingMore || !hasMore || isLoadingApplications) return;
     setLoadingMore(true);
-    fetchODApplications(currentPage + 1, false);
-  }, [loadingMore, hasMore, isLoadingApplications, currentPage, fetchODApplications]);
+    fetchWFHApplications(currentPage + 1, false);
+  }, [loadingMore, hasMore, isLoadingApplications, currentPage, fetchWFHApplications]);
 
   // Get status color
   const getStatusColor = (status: ApprovalStatus) => {
@@ -222,14 +204,14 @@ export default function ODApplicationList() {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // Render OD application card
-  const renderODCard = ({ item }: { item: ODApplication }) => (
+  // Render WFH application card
+  const renderWFHCard = ({ item }: { item: WFHApplication }) => (
     <View style={[styles.card, { backgroundColor: theme.colors.card }]}>
       {/* Header with Status */}
       <View style={styles.cardHeader}>
         <View style={[styles.typeBadge, { backgroundColor: '#2196F3' + '20' }]}>
           <Text style={[styles.typeBadgeText, { color: '#2196F3' }]}>
-            OD Application
+            WFH Application
           </Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.approval_status) + '20' }]}>
@@ -244,57 +226,23 @@ export default function ODApplicationList() {
       <View style={styles.infoRow}>
         <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
         <Text style={[styles.infoText, { color: theme.colors.text, fontWeight: '600' }]}>
-          {formatDate(item.od_start_date)} - {formatDate(item.od_end_date)}
+          {formatDate(item.wfh_start_date)} - {formatDate(item.wfh_end_date)}
         </Text>
       </View>
 
-      {/* OD Type */}
-      <View style={styles.infoRow}>
-        <Ionicons name="briefcase-outline" size={16} color={theme.colors.textSecondary} />
-        <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          {item.od_type}
-        </Text>
-      </View>
-
-      {/* OD Type Description */}
+      {/* Purpose */}
       <View style={styles.infoRow}>
         <Ionicons name="document-text-outline" size={16} color={theme.colors.textSecondary} />
         <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          {item.od_type_description}
+          {item.purpose_of_wfh}
         </Text>
       </View>
 
-      {/* Location */}
-      <View style={styles.infoRow}>
-        <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
-        <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          {item.location}
-        </Text>
-      </View>
-
-      {/* Per Day Rate */}
-      <View style={styles.infoRow}>
-        <Ionicons name="cash-outline" size={16} color={theme.colors.textSecondary} />
-        <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          ₹{item.per_day_rate} per day
-        </Text>
-      </View>
-
-      {/* Approval/Rejection Date */}
+      {/* Approval Date */}
       {item.approval_status === 'Approved' && item.date_of_approval && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
             Approved on {formatDate(item.date_of_approval)}
-            {item.approved_by && ` by ${item.approved_by}`}
-          </Text>
-        </View>
-      )}
-
-      {item.approval_status === 'Rejected' && item.date_of_rejection && (
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-            Rejected on {formatDate(item.date_of_rejection)}
-            {item.rejected_by && ` by ${item.rejected_by}`}
           </Text>
         </View>
       )}
@@ -330,19 +278,19 @@ export default function ODApplicationList() {
               <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              My OD Applications
+              My WFH Applications
             </Text>
           </View>
         </View>
 
-        {/* Add OD Application Button */}
+        {/* Add WFH Application Button */}
         <View style={[styles.addButtonContainer, { backgroundColor: theme.colors.card }]}>
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: COLORS.primary }]}
-            onPress={() => router.push('/(screens)/ODApplication')}
+            onPress={() => router.push('/(screens)/WFHApplication')}
           >
             <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add OD Application</Text>
+            <Text style={styles.addButtonText}>Add WFH Application</Text>
           </TouchableOpacity>
         </View>
 
@@ -400,16 +348,16 @@ export default function ODApplicationList() {
               </Text>
             </TouchableOpacity>
             <Text style={[styles.statsText, { color: theme.colors.textSecondary }]}>
-              {odApplications.length} application{odApplications.length !== 1 ? 's' : ''}
+              {wfhApplications.length} application{wfhApplications.length !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
 
         {/* Applications List */}
         <FlatList
-          data={odApplications}
+          data={wfhApplications}
           keyExtractor={(item) => item.id}
-          renderItem={renderODCard}
+          renderItem={renderWFHCard}
           contentContainerStyle={styles.listContent}
           scrollEnabled={!showStatusDropdown}
           refreshControl={
@@ -426,10 +374,10 @@ export default function ODApplicationList() {
             <View style={styles.emptyContainer}>
               <Ionicons name="document-outline" size={64} color={theme.colors.textSecondary} />
               <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                No OD applications found
+                No WFH applications found
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
-                Create your first OD application using the button above
+                Create your first WFH application using the button above
               </Text>
             </View>
           }
@@ -450,7 +398,7 @@ export default function ODApplicationList() {
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={[styles.loadingText, { color: '#FFFFFF' }]}>
-              Loading OD applications...
+              Loading WFH applications...
             </Text>
           </View>
         )}
@@ -462,7 +410,7 @@ export default function ODApplicationList() {
             <Text style={styles.errorText}>{applicationsError}</Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => fetchODApplications(0, false)}
+              onPress={() => fetchWFHApplications(0, false)}
             >
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
@@ -596,10 +544,6 @@ const styles = StyleSheet.create({
   sortButtonText: {
     fontSize: 13,
     fontWeight: '600',
-  },
-  statsContainer: {
-    justifyContent: 'flex-end',
-    paddingBottom: 10,
   },
   statsText: {
     fontSize: 13,
@@ -756,9 +700,5 @@ const styles = StyleSheet.create({
   },
   loadingMoreText: {
     fontSize: 13,
-  },
-  loadMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

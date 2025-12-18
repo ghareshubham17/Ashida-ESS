@@ -63,7 +63,7 @@ export default function HomeScreen() {
       title: 'WFH Application',
       icon: 'home-outline' as keyof typeof Ionicons.glyphMap,
       color: '#FF9800',
-      onPress: () => router.push('/(screens)/WFHApplication')
+      onPress: () => router.push('/(screens)/WFHApplicationList')
     },
     {
       id: 'applications',

@@ -4,6 +4,8 @@ import { darkTheme, lightTheme } from '@/constants/TabTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFrappeService } from '@/services/frappeService';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -20,7 +22,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
 
@@ -402,6 +403,24 @@ export default function WFHApplicationScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            {/* User Info Card */}
+            {employeeName && attendanceDeviceId && (
+              <View style={styles.userInfoCard}>
+                <LinearGradient
+                  colors={[COLORS.primary, COLORS.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.userInfoGradient}
+                >
+                  <Ionicons name="person" size={24} color="#fff" />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{employeeName}</Text>
+                    <Text style={styles.userEmployee}>ID: {attendanceDeviceId}</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            )}
+
             {/* WFH Start Date */}
             <View style={styles.fieldContainer}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
@@ -508,22 +527,6 @@ export default function WFHApplicationScreen() {
               )}
             </View>
 
-            {/* Approval Status (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Approval Status <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.dropdown, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {approvalStatus}
-                </Text>
-                <Ionicons name="lock-closed" size={16} color={theme.colors.textSecondary} />
-              </View>
-              <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-                Status will be set to "Pending" upon submission
-              </Text>
-            </View>
-
             {/* Submit Button */}
             <TouchableOpacity
               style={[styles.submitButton, { backgroundColor: COLORS.primary }]}
@@ -574,6 +577,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 120,
+  },
+  userInfoCard: {
+    borderRadius: 16,
+    marginBottom: 24,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  userInfoGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  userInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  userName: {
+    fontSize: width > 768 ? 20 : 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  userEmployee: {
+    fontSize: width > 768 ? 16 : 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,

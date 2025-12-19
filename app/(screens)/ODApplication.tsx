@@ -469,7 +469,7 @@ export default function ODApplicationScreen() {
                   <Ionicons name="person" size={24} color="#fff" />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{employeeName}</Text>
-                    <Text style={styles.userEmployee}>ID: {attendanceDeviceId}</Text>
+                    <Text style={styles.userEmployee}>ECode: {attendanceDeviceId}</Text>
                   </View>
                 </LinearGradient>
               </View>

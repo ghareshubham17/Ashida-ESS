@@ -16,10 +16,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useColorScheme,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -385,7 +384,7 @@ export default function WFHApplicationScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            Work From Home
+            Apply for Work From Home
           </Text>
           <View style={{ width: 24 }} />
         </View>
@@ -415,7 +414,7 @@ export default function WFHApplicationScreen() {
                   <Ionicons name="person" size={24} color="#fff" />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{employeeName}</Text>
-                    <Text style={styles.userEmployee}>ID: {attendanceDeviceId}</Text>
+                    <Text style={styles.userEmployee}>ECode: {attendanceDeviceId}</Text>
                   </View>
                 </LinearGradient>
               </View>

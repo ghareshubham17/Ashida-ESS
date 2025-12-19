@@ -49,7 +49,7 @@ export default function HomeScreen() {
       title: 'Gatepass',
       icon: 'exit-outline' as keyof typeof Ionicons.glyphMap,
       color: '#4CAF50',
-      onPress: () => router.push('/(screens)/GatepassApplication')
+      onPress: () => router.push('/(screens)/GatepassApplicationList')
     },
     {
       id: 'od',
@@ -77,7 +77,7 @@ export default function HomeScreen() {
       title: 'Apply Leave',
       icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
       color: '#9C27B0',
-      onPress: () => router.push('/(screens)/LeaveApplication')
+      onPress: () => router.push('/(screens)/LeaveApplicationList')
     },
     {
       id: 'holidays',

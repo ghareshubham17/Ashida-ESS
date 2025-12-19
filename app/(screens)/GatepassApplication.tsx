@@ -298,7 +298,7 @@ export default function GatepassApplicationScreen() {
                 <Ionicons name="person" size={24} color="#fff" />
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{currentEmployee.employee_name}</Text>
-                  <Text style={styles.userEmployee}>ID: {currentEmployee.attendance_device_id}</Text>
+                  <Text style={styles.userEmployee}>ECode: {currentEmployee.attendance_device_id}</Text>
                 </View>
               </LinearGradient>
             </View>

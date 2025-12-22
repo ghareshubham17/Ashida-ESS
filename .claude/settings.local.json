@@ -21,7 +21,9 @@
       "Bash(move \"(tabs)\\wfh-application.tsx\" \"(screens)\\wfh-application.tsx\")",
       "Bash(ls:*)",
       "Bash(move \"app\\(screens)\\HolidaysScreen.tsx\" \"app\\(screens)\\Holidays.tsx\")",
-      "Bash(move \"app\\(screens)\\LeaveApplicationScreen.tsx\" \"app\\(screens)\\LeaveApplication.tsx\")"
+      "Bash(move \"app\\(screens)\\LeaveApplicationScreen.tsx\" \"app\\(screens)\\LeaveApplication.tsx\")",
+      "Bash(cat:*)",
+      "Bash(eas:*)"
     ],
     "deny": [],
     "ask": []

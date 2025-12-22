@@ -3,8 +3,14 @@
     "name": "AshidaESS",
     "slug": "AshidaESS",
     "version": "1.0.0",
+    "owner": "ashidaess",
+    "extra": {
+      "eas": {
+        "projectId": "20ad97f9-fe68-4f4a-b5ee-25e1ae8e418d"
+      }
+    },
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "ashidaess",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,10 +19,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/logo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

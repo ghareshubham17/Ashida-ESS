@@ -4,6 +4,8 @@ import { darkTheme, lightTheme } from '@/constants/TabTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFrappeService } from '@/services/frappeService';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -20,7 +22,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +44,14 @@ const OD_TYPE_OPTIONS = [
   'Outdoor',
   'International Outdoor',
 ];
+
+const OD_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'Local': "Local work between '7 AM - 7 PM'",
+  'Local LT': "Local work between '5-7 AM - 7-11 PM'",
+  'Local NT': "Local work between '11 PM - 5 AM'",
+  'Outdoor': "Work at site in wide zone",
+  'International Outdoor': "International Site"
+};
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 
@@ -383,7 +392,7 @@ export default function ODApplicationScreen() {
         console.log('Document submitted successfully');
       }
 
-      Alert.alert('Success', 'On Duty application submitted successfully!', [
+      Alert.alert('Success', 'Outdoor application submitted successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
 
@@ -429,7 +438,7 @@ export default function ODApplicationScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            On Duty Application
+            Apply for Outdoor Application
           </Text>
           <View style={{ width: 24 }} />
         </View>
@@ -448,53 +457,23 @@ export default function ODApplicationScreen() {
             showsVerticalScrollIndicator={false}
             scrollEnabled={!showStartValueDropdown && !showEndValueDropdown && !showOdTypeDropdown}
           >
-            {/* Employee ID (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Employee ID <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {employee || 'N/A'}
-                </Text>
+            {/* User Info Card */}
+            {employeeName && attendanceDeviceId && (
+              <View style={styles.userInfoCard}>
+                <LinearGradient
+                  colors={[COLORS.primary, COLORS.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.userInfoGradient}
+                >
+                  <Ionicons name="person" size={24} color="#fff" />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{employeeName}</Text>
+                    <Text style={styles.userEmployee}>ECode: {attendanceDeviceId}</Text>
+                  </View>
+                </LinearGradient>
               </View>
-            </View>
-
-            {/* Employee Name (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Employee Name <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {employeeName || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Department (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Department <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {department || 'N/A'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Attendance Device ID (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Attendance Device ID
-              </Text>
-              <View style={[styles.input, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {attendanceDeviceId || 'N/A'}
-                </Text>
-              </View>
-            </View>
+            )}
 
             {/* OD Start Date */}
             <View style={styles.fieldContainer}>
@@ -691,6 +670,11 @@ export default function ODApplicationScreen() {
                   ))}
                 </View>
               )}
+              {odType && (
+                <Text style={[styles.hint, { color: theme.colors.primary, marginTop: 8, fontWeight: '600' }]}>
+                  {OD_TYPE_DESCRIPTIONS[odType]}
+                </Text>
+              )}
             </View>
 
             {/* Location (Text Input) */}
@@ -706,22 +690,6 @@ export default function ODApplicationScreen() {
                 onChangeText={setLocation}
                 onFocus={closeAllDropdowns}
               />
-            </View>
-
-            {/* Approval Status (Auto-filled, Disabled) */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Approval Status <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={[styles.dropdown, styles.disabledInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                <Text style={[styles.disabledText, { color: theme.colors.textSecondary }]}>
-                  {approvalStatus}
-                </Text>
-                <Ionicons name="lock-closed" size={16} color={theme.colors.textSecondary} />
-              </View>
-              <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-                Status will be set to "Pending" upon submission
-              </Text>
             </View>
 
             {/* Submit Button */}
@@ -774,6 +742,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 120,
+  },
+  userInfoCard: {
+    borderRadius: 16,
+    marginBottom: 24,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  userInfoGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  userInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  userName: {
+    fontSize: width > 768 ? 20 : 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  userEmployee: {
+    fontSize: width > 768 ? 16 : 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
@@ -844,7 +847,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderRadius: 8,
     borderWidth: 1,
-    maxHeight: 200,
+    maxHeight: 250,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

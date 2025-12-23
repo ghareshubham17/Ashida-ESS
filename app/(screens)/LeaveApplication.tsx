@@ -348,7 +348,6 @@ export default function LeaveApplication() {
                 <Ionicons name="person" size={24} color="#fff" />
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{currentEmployee.employee_name}</Text>
-                  <Text style={styles.userEmployee}>ID: {currentEmployee.name}</Text>
                   {currentEmployee.attendance_device_id && (
                     <Text style={styles.userEmployee}>
                       ECode: {currentEmployee.attendance_device_id}
@@ -556,7 +555,7 @@ export default function LeaveApplication() {
           {/* Description Input */}
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Description <Text style={styles.required}>*</Text>
+              Remark <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={[styles.input, styles.reasonInput, { backgroundColor: theme.colors.card, color: theme.colors.text, borderColor: theme.colors.border }]}

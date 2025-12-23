@@ -49,35 +49,28 @@ export default function HomeScreen() {
       title: 'Gatepass',
       icon: 'exit-outline' as keyof typeof Ionicons.glyphMap,
       color: '#4CAF50',
-      onPress: () => router.push('/(screens)/GatepassApplication')
+      onPress: () => router.push('/(screens)/GatepassApplicationList')
     },
     {
       id: 'od',
-      title: 'OD Application',
+      title: 'Outdoor',
       icon: 'briefcase-outline' as keyof typeof Ionicons.glyphMap,
       color: '#2196F3',
-      onPress: () => router.push('/(screens)/ODApplication')
+      onPress: () => router.push('/(screens)/ODApplicationList')
     },
     {
       id: 'wfh',
-      title: 'WFH Application',
+      title: 'WFH',
       icon: 'home-outline' as keyof typeof Ionicons.glyphMap,
       color: '#FF9800',
-      onPress: () => router.push('/(screens)/WFHApplication')
-    },
-    {
-      id: 'applications',
-      title: 'All Applications',
-      icon: 'documents-outline',
-      color: '#667eea',
-      onPress: () => router.push('/(screens)/ApplicationsList')
+      onPress: () => router.push('/(screens)/WFHApplicationList')
     },
     {
       id: 'leave',
-      title: 'Apply Leave',
+      title: 'Leave',
       icon: 'time-outline' as keyof typeof Ionicons.glyphMap,
       color: '#9C27B0',
-      onPress: () => router.push('/(screens)/LeaveApplication')
+      onPress: () => router.push('/(screens)/LeaveApplicationList')
     },
     {
       id: 'holidays',

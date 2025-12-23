@@ -1,3 +1,4 @@
+//new code
 import { darkTheme, lightTheme } from '@/constants/TabTheme';
 import { useFrappeService } from '@/services/frappeService';
 import type { Employee, EmployeeCheckin } from '@/types';
@@ -29,11 +30,24 @@ interface AttendanceCalendarProps {
   setCurrentMonth: (date: Date) => void;
 }
 
+interface DayData {
+  date: string;
+  checkIns: string[];
+  checkOuts: string[];
+  status: 'present' | 'incomplete' | 'absent' | 'on_leave' | 'half_day' | 'work_from_home';
+  attendanceStatus: string | null;
+  isWFH?: boolean;
+  isOD?: boolean;
+}
+
+interface ProcessedData {
+  [dateKey: string]: DayData;
+}
+
 interface DayInfo {
   day: number;
   dateKey: string;
-  isWFH?: boolean;
-  isOD?: boolean;
+  data: DayData | undefined;
 }
 
 interface WFHApplication {
@@ -54,6 +68,13 @@ interface ODApplication {
   od_type_description: string;
 }
 
+interface Attendance {
+  name: string;
+  employee: string;
+  attendance_date: string;
+  status: string;
+}
+
 const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   visible,
   onClose,
@@ -61,151 +82,184 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   currentMonth,
   setCurrentMonth,
 }) => {
+  const frappeService = useFrappeService();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const frappeService = useFrappeService();
 
-  const [wfhApplications, setWfhApplications] = useState<WFHApplication[]>([]);
+  const [monthlyRecords, setMonthlyRecords] = useState<EmployeeCheckin[]>([]);
+  const [processedData, setProcessedData] = useState<ProcessedData>({});
   const [wfhDates, setWfhDates] = useState<Set<string>>(new Set());
-  const [odApplications, setOdApplications] = useState<ODApplication[]>([]);
   const [odDates, setOdDates] = useState<Set<string>>(new Set());
-
-  // Dialog state for check-in/check-out
-  const [showCheckinDialog, setShowCheckinDialog] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [checkinTime, setCheckinTime] = useState('');
-  const [checkoutTime, setCheckoutTime] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [existingCheckins, setExistingCheckins] = useState<EmployeeCheckin[]>([]);
-  const [allowedLogType, setAllowedLogType] = useState<'IN' | 'OUT' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch WFH applications
-  useEffect(() => {
-    const fetchWFHApplications = async () => {
-      if (!visible || !currentEmployee) return;
+  // Dialog state
+  const [showDialog, setShowDialog] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDayData, setSelectedDayData] = useState<DayData | null>(null);
+  const [entryTime, setEntryTime] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allowedLogType, setAllowedLogType] = useState<'IN' | 'OUT' | null>(null);
 
-      try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const startDate = new Date(year, month, 1);
-        const endDate = new Date(year, month + 1, 0);
+  const getMonthDateRange = useCallback((date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
 
-        const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
-        const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0);
 
-        console.log('Fetching WFH applications for:', currentEmployee.name);
-        console.log('Date range:', startDateStr, 'to', endDateStr);
-
-        const wfhRecords = await frappeService.getList<WFHApplication>('Work From Home Application', {
-          fields: ['name', 'employee', 'wfh_start_date', 'wfh_end_date', 'approval_status', 'purpose_of_wfh'],
-          filters: {
-            employee: currentEmployee.name,
-            approval_status: 'Approved',
-            docstatus: 1,
-          },
-          limitPageLength: 1000
-        });
-
-        console.log('Fetched WFH applications:', wfhRecords);
-
-        setWfhApplications(wfhRecords || []);
-
-        // Process WFH dates
-        const wfhDateSet = new Set<string>();
-        (wfhRecords || []).forEach(wfh => {
-          const start = new Date(wfh.wfh_start_date);
-          const end = new Date(wfh.wfh_end_date);
-
-          // Add all dates in the range
-          const currentDate = new Date(start);
-          while (currentDate <= end) {
-            const dateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-            wfhDateSet.add(dateKey);
-            currentDate.setDate(currentDate.getDate() + 1);
-          }
-        });
-
-        console.log('WFH dates:', Array.from(wfhDateSet));
-        setWfhDates(wfhDateSet);
-
-      } catch (error) {
-        console.error('Error fetching WFH applications:', error);
-      }
+    return {
+      startTime: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')} 00:00:00`,
+      endTime: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')} 23:59:59`,
+      startDate: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`,
+      endDate: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`,
     };
+  }, []);
 
-    const fetchODApplications = async () => {
-      if (!visible || !currentEmployee) return;
+  const processAttendanceData = useCallback((
+    records: EmployeeCheckin[],
+    attendanceRecords: Attendance[] = [],
+    wfhDateSet: Set<string> = new Set(),
+    odDateSet: Set<string> = new Set()
+  ): ProcessedData => {
+    const dailyData: ProcessedData = {};
 
-      try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const startDate = new Date(year, month, 1);
-        const endDate = new Date(year, month + 1, 0);
+    // First, process Attendance records (for official status like Leave, Half Day, WFH)
+    attendanceRecords.forEach(record => {
+      if (!record.attendance_date) return;
 
-        const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
-        const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+      const dateKey = record.attendance_date; // Already in YYYY-MM-DD format
 
-        console.log('Fetching OD applications for:', currentEmployee.name);
-        console.log('Date range:', startDateStr, 'to', endDateStr);
-
-        const odRecords = await frappeService.getList<ODApplication>('OD Application', {
-          fields: ['name', 'employee', 'od_start_date', 'od_end_date', 'approval_status', 'od_type_description'],
-          filters: {
-            employee: currentEmployee.name,
-            approval_status: 'Approved',
-            docstatus: 1,
-          },
-          limitPageLength: 1000
-        });
-
-        console.log('Fetched OD applications:', odRecords);
-
-        setOdApplications(odRecords || []);
-
-        // Process OD dates
-        const odDateSet = new Set<string>();
-        (odRecords || []).forEach(od => {
-          const start = new Date(od.od_start_date);
-          const end = new Date(od.od_end_date);
-
-          // Add all dates in the range
-          const currentDate = new Date(start);
-          while (currentDate <= end) {
-            const dateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
-            odDateSet.add(dateKey);
-            currentDate.setDate(currentDate.getDate() + 1);
-          }
-        });
-
-        console.log('OD dates:', Array.from(odDateSet));
-        setOdDates(odDateSet);
-
-      } catch (error) {
-        console.error('Error fetching OD applications:', error);
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = {
+          date: dateKey,
+          checkIns: [],
+          checkOuts: [],
+          status: 'absent',
+          attendanceStatus: null,
+          isWFH: wfhDateSet.has(dateKey),
+          isOD: odDateSet.has(dateKey),
+        };
       }
-    };
 
-    fetchWFHApplications();
-    fetchODApplications();
-  }, [visible, currentMonth, currentEmployee, frappeService]);
+      // Map Frappe attendance status to our status
+      const status = record.status?.toLowerCase().replace(/\s+/g, '_');
+      dailyData[dateKey].attendanceStatus = status;
 
-  // Pull to refresh handler
-  const onRefresh = useCallback(async () => {
-    if (!visible || !currentEmployee) return;
+      // Set initial status from Attendance record
+      if (status === 'on_leave') {
+        dailyData[dateKey].status = 'on_leave';
+      } else if (status === 'half_day') {
+        dailyData[dateKey].status = 'half_day';
+      } else if (status === 'work_from_home') {
+        dailyData[dateKey].status = 'work_from_home';
+      } else if (status === 'present') {
+        dailyData[dateKey].status = 'present';
+      } else if (status === 'absent') {
+        dailyData[dateKey].status = 'absent';
+      }
+    });
 
-    setRefreshing(true);
+    // Then process Employee Checkin records
+    records.forEach(record => {
+      if (!record.time) {
+        console.warn('Skipping record without time field:', record);
+        return;
+      }
+
+      const recordDate = new Date(record.time);
+      if (isNaN(recordDate.getTime())) {
+        console.warn('Invalid date for record:', record);
+        return;
+      }
+
+      const dateKey = recordDate.toISOString().split('T')[0];
+
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = {
+          date: dateKey,
+          checkIns: [],
+          checkOuts: [],
+          status: 'absent',
+          attendanceStatus: null,
+          isWFH: wfhDateSet.has(dateKey),
+          isOD: odDateSet.has(dateKey),
+        };
+      }
+
+      if (record.log_type === 'IN') {
+        dailyData[dateKey].checkIns.push(record.time);
+      } else if (record.log_type === 'OUT') {
+        dailyData[dateKey].checkOuts.push(record.time);
+      }
+    });
+
+    // Determine final status for each day
+    Object.keys(dailyData).forEach(dateKey => {
+      const dayData = dailyData[dateKey];
+
+      // If there's an official Attendance status, it takes precedence
+      if (dayData.attendanceStatus && ['on_leave', 'half_day', 'work_from_home'].includes(dayData.attendanceStatus)) {
+        // Keep the attendance status
+        return;
+      }
+
+      // Otherwise, determine from check-in/check-out records
+      const hasCheckIn = dayData.checkIns.length > 0;
+      const hasCheckOut = dayData.checkOuts.length > 0;
+
+      if (hasCheckIn && hasCheckOut) {
+        if (dayData.checkOuts.length >= dayData.checkIns.length) {
+          dayData.status = 'present';
+        } else {
+          dayData.status = 'incomplete';
+        }
+      } else if (hasCheckIn && !hasCheckOut) {
+        dayData.status = 'incomplete';
+      } else if (!hasCheckIn && hasCheckOut) {
+        dayData.status = 'incomplete';
+      } else if (!dayData.attendanceStatus) {
+        dayData.status = 'absent';
+      }
+    });
+
+    return dailyData;
+  }, []);
+
+  const fetchMonthlyRecords = useCallback(async () => {
+    if (!currentEmployee) return;
+
     try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const startDate = new Date(year, month, 1);
-      const endDate = new Date(year, month + 1, 0);
+      console.log('=== FETCHING MONTHLY RECORDS ===');
+      console.log('Employee:', currentEmployee);
+      console.log('Current Month:', currentMonth);
 
-      const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
-      const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+      const { startTime, endTime, startDate, endDate } = getMonthDateRange(currentMonth);
+      console.log('Date range:', { startTime, endTime });
 
-      // Fetch both WFH and OD applications in parallel
-      const [wfhRecords, odRecords] = await Promise.all([
+      // Fetch all data in parallel
+      const [records, attendanceRecords, wfhRecords, odRecords] = await Promise.all([
+        // Employee Checkin records
+        frappeService.getList<EmployeeCheckin>('Employee Checkin', {
+          fields: ['name', 'employee', 'time', 'log_type'],
+          filters: {
+            employee: currentEmployee.name,
+            time: ['between', [startTime, endTime]]
+          },
+          orderBy: 'time asc',
+          limitPageLength: 1000
+        }),
+        // Attendance records
+        frappeService.getList<Attendance>('Attendance', {
+          fields: ['name', 'employee', 'attendance_date', 'status'],
+          filters: {
+            employee: currentEmployee.name,
+            attendance_date: ['between', [startDate, endDate]],
+            docstatus: 1,
+          },
+          orderBy: 'attendance_date asc',
+          limitPageLength: 1000
+        }),
+        // WFH Applications
         frappeService.getList<WFHApplication>('Work From Home Application', {
           fields: ['name', 'employee', 'wfh_start_date', 'wfh_end_date', 'approval_status', 'purpose_of_wfh'],
           filters: {
@@ -215,6 +269,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           },
           limitPageLength: 1000
         }),
+        // OD Applications
         frappeService.getList<ODApplication>('OD Application', {
           fields: ['name', 'employee', 'od_start_date', 'od_end_date', 'approval_status', 'od_type_description'],
           filters: {
@@ -226,8 +281,12 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         })
       ]);
 
+      console.log('Fetched checkin records:', records?.length || 0);
+      console.log('Fetched attendance records:', attendanceRecords?.length || 0);
+      console.log('Fetched WFH records:', wfhRecords?.length || 0);
+      console.log('Fetched OD records:', odRecords?.length || 0);
+
       // Process WFH dates
-      setWfhApplications(wfhRecords || []);
       const wfhDateSet = new Set<string>();
       (wfhRecords || []).forEach(wfh => {
         const start = new Date(wfh.wfh_start_date);
@@ -242,7 +301,6 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       setWfhDates(wfhDateSet);
 
       // Process OD dates
-      setOdApplications(odRecords || []);
       const odDateSet = new Set<string>();
       (odRecords || []).forEach(od => {
         const start = new Date(od.od_start_date);
@@ -256,35 +314,111 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       });
       setOdDates(odDateSet);
 
-      console.log('Refresh completed - WFH:', wfhRecords?.length, 'OD:', odRecords?.length);
+      setMonthlyRecords(records || []);
+      const processed = processAttendanceData(records || [], attendanceRecords || [], wfhDateSet, odDateSet);
+      setProcessedData(processed);
+      console.log('Processed data:', processed);
+
+    } catch (error) {
+      console.error('Error fetching monthly records:', error);
+      Alert.alert('Error', 'Failed to fetch calendar data: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  }, [currentEmployee, currentMonth, getMonthDateRange, frappeService, processAttendanceData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchMonthlyRecords();
     } catch (error) {
       console.error('Error during refresh:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [visible, currentEmployee, currentMonth, frappeService]);
+  }, [fetchMonthlyRecords]);
 
-  // Check if a date is today
-  const isCurrentDate = (dateKey: string): boolean => {
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    return dateKey === todayKey;
+  useEffect(() => {
+    if (visible && currentEmployee) {
+      console.log('Calendar opened, fetching records...');
+      fetchMonthlyRecords();
+    }
+  }, [visible, currentMonth, currentEmployee?.name, fetchMonthlyRecords]);
+
+  const formatTime = (timeString: string): string => {
+    const time = new Date(timeString);
+    return time.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
-  // Convert 24-hour time to 12-hour format
-  const convert24to12 = (time24: string): string => {
-    if (!time24) return '';
-    const [hours, minutes] = time24.split(':').map(Number);
+  // Check if date is within last 7 days
+  const isWithinLast7Days = (dateKey: string): boolean => {
+    const selectedDate = new Date(dateKey);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    const diffTime = today.getTime() - selectedDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays >= 0 && diffDays <= 6; // Today and last 6 days = 7 days total
+  };
+
+  const handleDayClick = async (day: number, dayData: DayData | undefined) => {
+    const dateKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // Check if date is within last 7 days
+    if (!isWithinLast7Days(dateKey)) {
+      // If not in last 7 days, don't open dialog - just return without any action
+      return;
+    }
+
+    // Within last 7 days - open dialog for entry
+    setSelectedDate(dateKey);
+    setSelectedDayData(dayData || null);
+
+    // Determine what entry is allowed
+    const hasCheckIn = (dayData?.checkIns.length || 0) > 0;
+    const hasCheckOut = (dayData?.checkOuts.length || 0) > 0;
+
+    if (hasCheckIn && hasCheckOut) {
+      // Both exist
+      setAllowedLogType(null);
+    } else if (hasCheckIn && !hasCheckOut) {
+      // Only check-in exists, allow check-out
+      setAllowedLogType('OUT');
+    } else if (!hasCheckIn && hasCheckOut) {
+      // Only check-out exists, allow check-in
+      setAllowedLogType('IN');
+    } else {
+      // Neither exists, start with check-in
+      setAllowedLogType('IN');
+    }
+
+    // Set default time in 12-hour format
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
     const period = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12;
-    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+    setEntryTime(`${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`);
+
+    setShowDialog(true);
   };
 
-  // Convert 12-hour time to 24-hour format
-  const convert12to24 = (time12: string): string => {
-    if (!time12) return '';
-    const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (!match) return time12; // Return as is if not in correct format
+  const handleSubmitEntry = async () => {
+    if (!entryTime || !selectedDate || !currentEmployee || !allowedLogType) {
+      Alert.alert('Error', 'Please enter a valid time');
+      return;
+    }
+
+    // Convert 12-hour to 24-hour format
+    const match = entryTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) {
+      Alert.alert('Error', 'Please enter time in format HH:MM AM/PM (e.g., 09:30 AM or 05:30 PM)');
+      return;
+    }
 
     let hours = parseInt(match[1], 10);
     const minutes = match[2];
@@ -296,160 +430,39 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       hours = 0;
     }
 
-    return `${String(hours).padStart(2, '0')}:${minutes}`;
-  };
-
-  // Fetch existing check-ins for the selected date
-  const fetchExistingCheckins = async (dateKey: string) => {
-    if (!currentEmployee) return;
-
-    try {
-      const startTime = `${dateKey} 00:00:00`;
-      const endTime = `${dateKey} 23:59:59`;
-
-      const checkins = await frappeService.getList<EmployeeCheckin>('Employee Checkin', {
-        fields: ['name', 'employee', 'time', 'log_type'],
-        filters: {
-          employee: currentEmployee.name,
-          time: ['between', [startTime, endTime]]
-        },
-        limitPageLength: 100
-      });
-
-      setExistingCheckins(checkins || []);
-
-      // Determine allowed log type
-      const hasCheckIn = checkins?.some(c => c.log_type === 'IN');
-      const hasCheckOut = checkins?.some(c => c.log_type === 'OUT');
-
-      if (!hasCheckIn) {
-        setAllowedLogType('IN');
-      } else if (hasCheckIn && !hasCheckOut) {
-        setAllowedLogType('OUT');
-      } else {
-        setAllowedLogType(null);
-      }
-
-    } catch (error) {
-      console.error('Error fetching existing check-ins:', error);
-      setExistingCheckins([]);
-      setAllowedLogType('IN'); // Default to IN if error
-    }
-  };
-
-  // Handle day click
-  const handleDayClick = async (dateKey: string) => {
-    // Check if it's current date
-    if (!isCurrentDate(dateKey)) {
-      Alert.alert('Not Allowed', 'You can only add check-in/check-out for today\'s date.');
-      return;
-    }
-
-    // Check if there's an approved WFH application for this date
-    const hasApprovedWFH = wfhDates.has(dateKey);
-    if (!hasApprovedWFH) {
-      Alert.alert('Not Allowed', 'You can only add check-in/check-out when you have an approved Work From Home application.');
-      return;
-    }
-
-    setSelectedDate(dateKey);
-
-    // Fetch existing check-ins for this date
-    await fetchExistingCheckins(dateKey);
-
-    // Set default times in 12-hour format
-    const now = new Date();
-    const currentTime24 = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const currentTime12 = convert24to12(currentTime24);
-    setCheckinTime(currentTime12);
-    setCheckoutTime(currentTime12);
-
-    setShowCheckinDialog(true);
-  };
-
-  // Submit check-in
-  const handleSubmitCheckin = async () => {
-    if (!checkinTime || !selectedDate || !currentEmployee) {
-      Alert.alert('Error', 'Please enter a valid check-in time');
-      return;
-    }
-
-    // Convert 12-hour time to 24-hour format
-    const time24 = convert12to24(checkinTime);
-    if (!time24 || !time24.match(/^\d{2}:\d{2}$/)) {
-      Alert.alert('Error', 'Please enter a valid time in format HH:MM AM/PM (e.g., 09:30 AM)');
-      return;
-    }
+    const time24 = `${String(hours).padStart(2, '0')}:${minutes}`;
 
     setIsSubmitting(true);
     try {
-      const checkinTimestamp = `${selectedDate} ${time24}:00`;
+      const timestamp = `${selectedDate} ${time24}:00`;
 
-      console.log('Creating check-in record:', {
+      console.log(`Creating ${allowedLogType} record:`, {
         employee: currentEmployee.name,
-        time: checkinTimestamp,
-        log_type: 'IN'
+        time: timestamp,
+        log_type: allowedLogType
       });
 
-      await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
+      const result = await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
         employee: currentEmployee.name,
-        time: checkinTimestamp,
-        log_type: 'IN'
+        time: timestamp,
+        log_type: allowedLogType
       });
 
-      Alert.alert('Success', 'Check-in recorded successfully!');
-      setShowCheckinDialog(false);
-      setCheckinTime('');
-      setCheckoutTime('');
+      console.log(`${allowedLogType} record created:`, result);
+
+      setShowDialog(false);
+      setEntryTime('');
       setSelectedDate(null);
+      setSelectedDayData(null);
+      setAllowedLogType(null);
+
+      Alert.alert('Success', `${allowedLogType === 'IN' ? 'Check-in' : 'Check-out'} record added successfully!`);
+
+      await fetchMonthlyRecords();
 
     } catch (error) {
-      console.error('Error creating check-in record:', error);
-      Alert.alert('Error', 'Failed to record check-in: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Submit check-out
-  const handleSubmitCheckout = async () => {
-    if (!checkoutTime || !selectedDate || !currentEmployee) {
-      Alert.alert('Error', 'Please enter a valid check-out time');
-      return;
-    }
-
-    // Convert 12-hour time to 24-hour format
-    const time24 = convert12to24(checkoutTime);
-    if (!time24 || !time24.match(/^\d{2}:\d{2}$/)) {
-      Alert.alert('Error', 'Please enter a valid time in format HH:MM AM/PM (e.g., 05:30 PM)');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const checkoutTimestamp = `${selectedDate} ${time24}:00`;
-
-      console.log('Creating check-out record:', {
-        employee: currentEmployee.name,
-        time: checkoutTimestamp,
-        log_type: 'OUT'
-      });
-
-      await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
-        employee: currentEmployee.name,
-        time: checkoutTimestamp,
-        log_type: 'OUT'
-      });
-
-      Alert.alert('Success', 'Check-out recorded successfully!');
-      setShowCheckinDialog(false);
-      setCheckinTime('');
-      setCheckoutTime('');
-      setSelectedDate(null);
-
-    } catch (error) {
-      console.error('Error creating check-out record:', error);
-      Alert.alert('Error', 'Failed to record check-out: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error(`Error creating ${allowedLogType} record:`, error);
+      Alert.alert('Error', `Failed to add ${allowedLogType === 'IN' ? 'check-in' : 'check-out'} record: ` + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsSubmitting(false);
     }
@@ -478,14 +491,12 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       }
 
       const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const isWFH = wfhDates.has(dateKey);
-      const isOD = odDates.has(dateKey);
+      const dayData = processedData[dateKey];
 
       currentWeek.push({
         day,
         dateKey,
-        isWFH,
-        isOD,
+        data: dayData
       });
     }
 
@@ -497,45 +508,115 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     return weeks;
   };
 
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'present':
+        return '#4CAF50'; // Green
+      case 'absent':
+        return '#F44336'; // Red
+      case 'on_leave':
+        return '#9C27B0'; // Purple
+      case 'half_day':
+        return '#00BCD4'; // Cyan
+      case 'work_from_home':
+        return '#2196F3'; // Blue
+      case 'incomplete':
+        return '#FFC107'; // Amber/Yellow
+      default:
+        return '#E0E0E0'; // Light gray
+    }
+  };
+
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'present':
+        return 'P';
+      case 'absent':
+        return 'A';
+      case 'on_leave':
+        return 'L';
+      case 'half_day':
+        return 'H';
+      case 'work_from_home':
+        return 'W';
+      case 'incomplete':
+        return 'I';
+      default:
+        return '';
+    }
+  };
+
   const renderDayCell = (dayInfo: DayInfo | null, index: number) => {
     if (!dayInfo) {
       return <View style={[styles.dayCell, styles.emptyCell, { backgroundColor: theme.colors.background }]} key={`empty-${index}`} />;
     }
 
-    const { day, dateKey, isWFH, isOD } = dayInfo;
+    const { day, data, dateKey } = dayInfo;
     const today = new Date();
     const isToday =
       today.getFullYear() === currentMonth.getFullYear() &&
       today.getMonth() === currentMonth.getMonth() &&
       today.getDate() === day;
 
+    // Check WFH/OD directly from sets
+    const isWFH = wfhDates.has(dateKey);
+    const isOD = odDates.has(dateKey);
+
+    // Determine background color
+    let backgroundColor = theme.colors.card;
+    if (data) {
+      // If attendance data exists, use its status color
+      const hasCheckins = data.checkIns.length > 0 || data.checkOuts.length > 0;
+      const hasAttendanceRecord = data.attendanceStatus !== null;
+
+      // Use solid/darker shade when:
+      // 1. Both attendance record AND checkins exist (most complete data) - darkest
+      // 2. Has attendance record OR checkins OR WFH/OD - medium dark
+      let opacity = '60'; // default medium-dark for any record
+      if (hasAttendanceRecord && hasCheckins) {
+        // Both records present - use darkest color
+        opacity = '80';
+      }
+
+      backgroundColor = getStatusColor(data.status) + opacity;
+    } else if (isWFH) {
+      // If no attendance but WFH application exists, use blue
+      backgroundColor = '#2196F3' + '20';
+    } else if (isOD) {
+      // If no attendance but OD application exists, use orange
+      backgroundColor = '#FF9800' + '20';
+    } else if (isToday) {
+      backgroundColor = theme.colors.primary + '20';
+    }
+
     return (
       <TouchableOpacity
         key={day}
         style={[
           styles.dayCell,
-          { backgroundColor: theme.colors.card },
-          isToday && { backgroundColor: theme.colors.primary + '20' },
-          isWFH && { backgroundColor: '#2196F3' + '20' },
-          isOD && { backgroundColor: '#FF9800' + '20' },
+          { backgroundColor }
         ]}
-        onPress={() => handleDayClick(dateKey)}
+        onPress={() => handleDayClick(day, data)}
         accessibilityRole="button"
-        accessibilityLabel={`Day ${day}${isWFH ? ', Work From Home' : ''}${isToday ? ', Today' : ''}`}
+        accessibilityLabel={`Day ${day}${data ? `, Status: ${data.status}` : ''}${isWFH ? ', Work From Home' : ''}${isOD ? ', On Duty' : ''}`}
       >
         <Text style={[styles.dayNumber, { color: theme.colors.text }, isToday && { color: theme.colors.primary, fontWeight: 'bold' }]}>
           {day}
         </Text>
-        {isWFH && (
+        {/* Priority: WFH > OD > Attendance Status - All at top-right */}
+        {isWFH ? (
           <View style={[styles.statusIndicator, { backgroundColor: '#2196F3' }]}>
             <Text style={styles.statusText}>W</Text>
           </View>
-        )}
-        {isOD && (
-          <View style={[styles.statusIndicator, styles.statusIndicatorOD, { backgroundColor: '#FF9800' }]}>
+        ) : isOD ? (
+          <View style={[styles.statusIndicator, { backgroundColor: '#FF9800' }]}>
             <Text style={styles.statusText}>O</Text>
           </View>
-        )}
+        ) : data ? (
+          <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(data.status) }]}>
+            <Text style={styles.statusText}>{getStatusText(data.status)}</Text>
+          </View>
+        ) : null}
       </TouchableOpacity>
     );
   };
@@ -603,15 +684,11 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                 <View style={[styles.legendColor, { backgroundColor: '#9C27B0' }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>On Leave</Text>
               </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#00BCD4' }]} />
-                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Half Day</Text>
-              </View>
             </View>
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#FF9800' }]} />
-                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>OD</Text>
+                <View style={[styles.legendColor, { backgroundColor: '#00BCD4' }]} />
+                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Half Day</Text>
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendColor, { backgroundColor: '#2196F3' }]} />
@@ -620,6 +697,12 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
               <View style={styles.legendItem}>
                 <View style={[styles.legendColor, { backgroundColor: '#FFC107' }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Incomplete</Text>
+              </View>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: '#FF9800' }]} />
+                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>OD</Text>
               </View>
             </View>
           </View>
@@ -637,19 +720,21 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           </View>
         </ScrollView>
 
-        {/* Check-in/Check-out Dialog */}
+        {/* Checkout Dialog */}
         <Modal
-          visible={showCheckinDialog}
+          visible={showDialog}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setShowCheckinDialog(false)}
+          onRequestClose={() => setShowDialog(false)}
         >
           <View style={styles.dialogOverlay}>
             <View style={[styles.dialogContainer, { backgroundColor: theme.colors.card }]}>
               <View style={[styles.dialogHeader, { borderBottomColor: theme.colors.border }]}>
-                <Text style={[styles.dialogTitle, { color: theme.colors.text }]}>Add Check-in/Check-out</Text>
+                <Text style={[styles.dialogTitle, { color: theme.colors.text }]}>
+                  {allowedLogType === 'IN' ? 'Add Check-in' : allowedLogType === 'OUT' ? 'Add Check-out' : 'Attendance Entry'}
+                </Text>
                 <TouchableOpacity
-                  onPress={() => setShowCheckinDialog(false)}
+                  onPress={() => setShowDialog(false)}
                   style={styles.dialogCloseButton}
                   accessibilityRole="button"
                   accessibilityLabel="Close dialog"
@@ -665,35 +750,41 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
                 {allowedLogType === null && (
                   <Text style={[styles.warningText, { color: '#FF9800' }]}>
-                    You have already completed both check-in and check-out for today.
+                    You have already completed both check-in and check-out for this day.
                   </Text>
                 )}
 
-                {allowedLogType === 'IN' && (
-                  <View style={styles.inputSection}>
-                    <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Check-in Time (12-hour format):</Text>
-                    <TextInput
-                      style={[styles.timeInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                      value={checkinTime}
-                      onChangeText={setCheckinTime}
-                      placeholder="09:00 AM"
-                      placeholderTextColor={theme.colors.textSecondary}
-                    />
-                    <Text style={[styles.inputHint, { color: theme.colors.textSecondary }]}>Format: HH:MM AM/PM (e.g., 09:30 AM)</Text>
+                {selectedDayData && (selectedDayData.checkIns.length > 0 || selectedDayData.checkOuts.length > 0) && (
+                  <View style={[styles.existingRecords, { backgroundColor: theme.colors.background }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Existing Records:</Text>
+                    {selectedDayData.checkIns.map((checkIn, index) => (
+                      <Text key={`in-${index}`} style={[styles.recordText, { color: theme.colors.textSecondary }]}>
+                        Check-in: {formatTime(checkIn)}
+                      </Text>
+                    ))}
+                    {selectedDayData.checkOuts.map((checkOut, index) => (
+                      <Text key={`out-${index}`} style={[styles.recordText, { color: theme.colors.textSecondary }]}>
+                        Check-out: {formatTime(checkOut)}
+                      </Text>
+                    ))}
                   </View>
                 )}
 
-                {allowedLogType === 'OUT' && (
+                {allowedLogType && (
                   <View style={styles.inputSection}>
-                    <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Check-out Time (12-hour format):</Text>
+                    <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+                      {allowedLogType === 'IN' ? 'Check-in' : 'Check-out'} Time (12-hour format):
+                    </Text>
                     <TextInput
                       style={[styles.timeInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                      value={checkoutTime}
-                      onChangeText={setCheckoutTime}
-                      placeholder="05:00 PM"
+                      value={entryTime}
+                      onChangeText={setEntryTime}
+                      placeholder={allowedLogType === 'IN' ? '09:00 AM' : '05:00 PM'}
                       placeholderTextColor={theme.colors.textSecondary}
                     />
-                    <Text style={[styles.inputHint, { color: theme.colors.textSecondary }]}>Format: HH:MM AM/PM (e.g., 05:30 PM)</Text>
+                    <Text style={[styles.inputHint, { color: theme.colors.textSecondary }]}>
+                      Format: HH:MM AM/PM (e.g., {allowedLogType === 'IN' ? '09:30 AM' : '05:30 PM'})
+                    </Text>
                   </View>
                 )}
               </View>
@@ -701,36 +792,22 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
               <View style={[styles.dialogActions, { borderTopColor: theme.colors.border }]}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setShowCheckinDialog(false)}
+                  onPress={() => setShowDialog(false)}
                   accessibilityRole="button"
                 >
                   <Text style={[styles.cancelButtonText, { color: theme.colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
 
-                {allowedLogType === 'IN' && (
+                {allowedLogType && (
                   <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: '#4CAF50' }, isSubmitting && styles.actionButtonDisabled]}
-                    onPress={handleSubmitCheckin}
+                    style={[styles.submitButton, { backgroundColor: theme.colors.primary }, isSubmitting && styles.submitButtonDisabled]}
+                    onPress={handleSubmitEntry}
                     disabled={isSubmitting}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: isSubmitting }}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {isSubmitting ? 'Adding...' : 'Check In'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {allowedLogType === 'OUT' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: theme.colors.primary }, isSubmitting && styles.actionButtonDisabled]}
-                    onPress={handleSubmitCheckout}
-                    disabled={isSubmitting}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: isSubmitting }}
-                  >
-                    <Text style={styles.actionButtonText}>
-                      {isSubmitting ? 'Adding...' : 'Check Out'}
+                    <Text style={styles.submitButtonText}>
+                      {isSubmitting ? 'Adding...' : `Add ${allowedLogType === 'IN' ? 'Check-in' : 'Check-out'}`}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -857,10 +934,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statusIndicatorOD: {
-    right: 'auto',
-    left: 2,
-  },
   statusText: {
     fontSize: 10,
     color: '#fff',
@@ -908,6 +981,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
+  existingRecords: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  recordText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
   inputSection: {
     marginBottom: 20,
   },
@@ -932,24 +1019,24 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 20,
     borderTopWidth: 1,
-    gap: 12,
   },
   cancelButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
+    marginRight: 12,
   },
   cancelButtonText: {
     fontSize: 14,
   },
-  actionButton: {
+  submitButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
-  actionButtonDisabled: {
+  submitButtonDisabled: {
     opacity: 0.5,
   },
-  actionButtonText: {
+  submitButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',

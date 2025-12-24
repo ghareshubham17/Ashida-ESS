@@ -22,6 +22,49 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
 const CELL_WIDTH = (width - 40) / 7;
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const STATUS_COLORS = {
+  present: '#4CAF50',      // Green
+  absent: '#F44336',       // Red
+  on_leave: '#9C27B0',     // Purple
+  half_day: '#00BCD4',     // Cyan
+  work_from_home: '#2196F3', // Blue
+  incomplete: '#FFC107',   // Amber/Yellow
+  default: '#E0E0E0',      // Light gray
+  wfh: '#2196F3',          // Blue
+  od: '#FF9800',           // Orange
+} as const;
+
+const STATUS_TEXT = {
+  present: 'P',
+  absent: 'A',
+  on_leave: 'L',
+  half_day: 'H',
+  work_from_home: 'W',
+  incomplete: 'I',
+} as const;
+
+const OPACITY = {
+  FULL: '80',    // For both attendance + checkins
+  MEDIUM: '60',  // For single record type
+  LIGHT: '20',   // For WFH/OD without attendance
+} as const;
+
+const DATE_RANGE = {
+  EDITABLE_DAYS: 7, // Last 7 days are editable
+} as const;
+
+const API_LIMITS = {
+  MAX_RECORDS: 1000,
+} as const;
+
+// ============================================================================
+// INTERFACES
+// ============================================================================
+
 interface AttendanceCalendarProps {
   visible: boolean;
   onClose: () => void;
@@ -75,6 +118,10 @@ interface Attendance {
   status: string;
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   visible,
   onClose,
@@ -82,17 +129,25 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   currentMonth,
   setCurrentMonth,
 }) => {
+  // --------------------------------------------------------------------------
+  // Hooks & Theme
+  // --------------------------------------------------------------------------
   const frappeService = useFrappeService();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
+  // --------------------------------------------------------------------------
+  // State - Data
+  // --------------------------------------------------------------------------
   const [monthlyRecords, setMonthlyRecords] = useState<EmployeeCheckin[]>([]);
   const [processedData, setProcessedData] = useState<ProcessedData>({});
   const [wfhDates, setWfhDates] = useState<Set<string>>(new Set());
   const [odDates, setOdDates] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
 
-  // Dialog state
+  // --------------------------------------------------------------------------
+  // State - Dialog
+  // --------------------------------------------------------------------------
   const [showDialog, setShowDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDayData, setSelectedDayData] = useState<DayData | null>(null);
@@ -100,6 +155,16 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedLogType, setAllowedLogType] = useState<'IN' | 'OUT' | null>(null);
 
+  // --------------------------------------------------------------------------
+  // Utility Functions
+  // --------------------------------------------------------------------------
+
+  // Format date as YYYY-MM-DD
+  const formatDateKey = useCallback((year: number, month: number, day: number): string => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }, []);
+
+  // Get month's start and end date range
   const getMonthDateRange = useCallback((date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -107,14 +172,22 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0);
 
-    return {
-      startTime: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')} 00:00:00`,
-      endTime: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')} 23:59:59`,
-      startDate: `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`,
-      endDate: `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`,
-    };
-  }, []);
+    const startDateKey = formatDateKey(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const endDateKey = formatDateKey(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
+    return {
+      startTime: `${startDateKey} 00:00:00`,
+      endTime: `${endDateKey} 23:59:59`,
+      startDate: startDateKey,
+      endDate: endDateKey,
+    };
+  }, [formatDateKey]);
+
+  // --------------------------------------------------------------------------
+  // Data Processing
+  // --------------------------------------------------------------------------
+
+  // Process attendance and checkin records to determine daily status
   const processAttendanceData = useCallback((
     records: EmployeeCheckin[],
     attendanceRecords: Attendance[] = [],
@@ -225,6 +298,11 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     return dailyData;
   }, []);
 
+  // --------------------------------------------------------------------------
+  // API Functions
+  // --------------------------------------------------------------------------
+
+  // Fetch all monthly records (checkins, attendance, WFH, OD)
   const fetchMonthlyRecords = useCallback(async () => {
     if (!currentEmployee) return;
 
@@ -246,7 +324,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
             time: ['between', [startTime, endTime]]
           },
           orderBy: 'time asc',
-          limitPageLength: 1000
+          limitPageLength: API_LIMITS.MAX_RECORDS
         }),
         // Attendance records
         frappeService.getList<Attendance>('Attendance', {
@@ -257,7 +335,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
             docstatus: 1,
           },
           orderBy: 'attendance_date asc',
-          limitPageLength: 1000
+          limitPageLength: API_LIMITS.MAX_RECORDS
         }),
         // WFH Applications
         frappeService.getList<WFHApplication>('Work From Home Application', {
@@ -267,7 +345,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
             approval_status: 'Approved',
             docstatus: 1,
           },
-          limitPageLength: 1000
+          limitPageLength: API_LIMITS.MAX_RECORDS
         }),
         // OD Applications
         frappeService.getList<ODApplication>('OD Application', {
@@ -277,7 +355,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
             approval_status: 'Approved',
             docstatus: 1,
           },
-          limitPageLength: 1000
+          limitPageLength: API_LIMITS.MAX_RECORDS
         })
       ]);
 
@@ -293,7 +371,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         const end = new Date(wfh.wfh_end_date);
         const currentDate = new Date(start);
         while (currentDate <= end) {
-          const dateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+          const dateKey = formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
           wfhDateSet.add(dateKey);
           currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -307,7 +385,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         const end = new Date(od.od_end_date);
         const currentDate = new Date(start);
         while (currentDate <= end) {
-          const dateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+          const dateKey = formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
           odDateSet.add(dateKey);
           currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -323,8 +401,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       console.error('Error fetching monthly records:', error);
       Alert.alert('Error', 'Failed to fetch calendar data: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
-  }, [currentEmployee, currentMonth, getMonthDateRange, frappeService, processAttendanceData]);
+  }, [currentEmployee, currentMonth, getMonthDateRange, frappeService, processAttendanceData, formatDateKey]);
 
+  // Refresh calendar data
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -336,6 +415,10 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     }
   }, [fetchMonthlyRecords]);
 
+  // --------------------------------------------------------------------------
+  // Effects
+  // --------------------------------------------------------------------------
+
   useEffect(() => {
     if (visible && currentEmployee) {
       console.log('Calendar opened, fetching records...');
@@ -343,6 +426,11 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     }
   }, [visible, currentMonth, currentEmployee?.name, fetchMonthlyRecords]);
 
+  // --------------------------------------------------------------------------
+  // Helper Functions
+  // --------------------------------------------------------------------------
+
+  // Format time string to 12-hour format
   const formatTime = (timeString: string): string => {
     const time = new Date(timeString);
     return time.toLocaleTimeString('en-US', {
@@ -352,7 +440,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     });
   };
 
-  // Check if date is within last 7 days
+  // Check if date is within editable range (last N days)
   const isWithinLast7Days = (dateKey: string): boolean => {
     const selectedDate = new Date(dateKey);
     const today = new Date();
@@ -362,11 +450,16 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     const diffTime = today.getTime() - selectedDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-    return diffDays >= 0 && diffDays <= 6; // Today and last 6 days = 7 days total
+    return diffDays >= 0 && diffDays <= DATE_RANGE.EDITABLE_DAYS - 1;
   };
 
+  // --------------------------------------------------------------------------
+  // Event Handlers
+  // --------------------------------------------------------------------------
+
+  // Handle day cell click - open dialog if within editable range
   const handleDayClick = async (day: number, dayData: DayData | undefined) => {
-    const dateKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateKey = formatDateKey(currentMonth.getFullYear(), currentMonth.getMonth(), day);
 
     // Check if date is within last 7 days
     if (!isWithinLast7Days(dateKey)) {
@@ -407,6 +500,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     setShowDialog(true);
   };
 
+  // Handle check-in/check-out entry submission
   const handleSubmitEntry = async () => {
     if (!entryTime || !selectedDate || !currentEmployee || !allowedLogType) {
       Alert.alert('Error', 'Please enter a valid time');
@@ -468,6 +562,11 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     }
   };
 
+  // --------------------------------------------------------------------------
+  // Rendering Functions
+  // --------------------------------------------------------------------------
+
+  // Generate calendar grid data structure
   const renderCalendarGrid = (): (DayInfo | null)[][] => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -490,7 +589,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         currentWeek = [];
       }
 
-      const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dateKey = formatDateKey(year, month, day);
       const dayData = processedData[dateKey];
 
       currentWeek.push({
@@ -508,85 +607,53 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     return weeks;
   };
 
+  // Get status color from constants
   const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'present':
-        return '#4CAF50'; // Green
-      case 'absent':
-        return '#F44336'; // Red
-      case 'on_leave':
-        return '#9C27B0'; // Purple
-      case 'half_day':
-        return '#00BCD4'; // Cyan
-      case 'work_from_home':
-        return '#2196F3'; // Blue
-      case 'incomplete':
-        return '#FFC107'; // Amber/Yellow
-      default:
-        return '#E0E0E0'; // Light gray
-    }
+    return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || STATUS_COLORS.default;
   };
 
+  // Get status text indicator from constants
   const getStatusText = (status: string): string => {
-    switch (status) {
-      case 'present':
-        return 'P';
-      case 'absent':
-        return 'A';
-      case 'on_leave':
-        return 'L';
-      case 'half_day':
-        return 'H';
-      case 'work_from_home':
-        return 'W';
-      case 'incomplete':
-        return 'I';
-      default:
-        return '';
-    }
+    return STATUS_TEXT[status as keyof typeof STATUS_TEXT] || '';
   };
 
+  // Render individual day cell
   const renderDayCell = (dayInfo: DayInfo | null, index: number) => {
     if (!dayInfo) {
       return <View style={[styles.dayCell, styles.emptyCell, { backgroundColor: theme.colors.background }]} key={`empty-${index}`} />;
     }
 
     const { day, data, dateKey } = dayInfo;
+
+    // Check if this is today
     const today = new Date();
     const isToday =
       today.getFullYear() === currentMonth.getFullYear() &&
       today.getMonth() === currentMonth.getMonth() &&
       today.getDate() === day;
 
-    // Check WFH/OD directly from sets
+    // Check if WFH or OD application exists for this date
     const isWFH = wfhDates.has(dateKey);
     const isOD = odDates.has(dateKey);
 
-    // Determine background color
+    // Determine background color based on data availability
     let backgroundColor = theme.colors.card;
     if (data) {
-      // If attendance data exists, use its status color
+      // Has attendance/checkin data
       const hasCheckins = data.checkIns.length > 0 || data.checkOuts.length > 0;
       const hasAttendanceRecord = data.attendanceStatus !== null;
 
-      // Use solid/darker shade when:
-      // 1. Both attendance record AND checkins exist (most complete data) - darkest
-      // 2. Has attendance record OR checkins OR WFH/OD - medium dark
-      let opacity = '60'; // default medium-dark for any record
-      if (hasAttendanceRecord && hasCheckins) {
-        // Both records present - use darkest color
-        opacity = '80';
-      }
-
+      // Use darker opacity when both attendance and checkins exist
+      const opacity = hasAttendanceRecord && hasCheckins ? OPACITY.FULL : OPACITY.MEDIUM;
       backgroundColor = getStatusColor(data.status) + opacity;
     } else if (isWFH) {
-      // If no attendance but WFH application exists, use blue
-      backgroundColor = '#2196F3' + '20';
+      // No attendance but WFH application exists
+      backgroundColor = STATUS_COLORS.wfh + OPACITY.LIGHT;
     } else if (isOD) {
-      // If no attendance but OD application exists, use orange
-      backgroundColor = '#FF9800' + '20';
+      // No attendance but OD application exists
+      backgroundColor = STATUS_COLORS.od + OPACITY.LIGHT;
     } else if (isToday) {
-      backgroundColor = theme.colors.primary + '20';
+      backgroundColor = theme.colors.primary + OPACITY.LIGHT;
     }
 
     return (
@@ -603,13 +670,13 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         <Text style={[styles.dayNumber, { color: theme.colors.text }, isToday && { color: theme.colors.primary, fontWeight: 'bold' }]}>
           {day}
         </Text>
-        {/* Priority: WFH > OD > Attendance Status - All at top-right */}
+        {/* Status indicator badge - Priority: WFH > OD > Attendance Status */}
         {isWFH ? (
-          <View style={[styles.statusIndicator, { backgroundColor: '#2196F3' }]}>
+          <View style={[styles.statusIndicator, { backgroundColor: STATUS_COLORS.wfh }]}>
             <Text style={styles.statusText}>W</Text>
           </View>
         ) : isOD ? (
-          <View style={[styles.statusIndicator, { backgroundColor: '#FF9800' }]}>
+          <View style={[styles.statusIndicator, { backgroundColor: STATUS_COLORS.od }]}>
             <Text style={styles.statusText}>O</Text>
           </View>
         ) : data ? (
@@ -621,6 +688,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     );
   };
 
+  // Render week row
   const renderWeek = (week: (DayInfo | null)[], weekIndex: number) => (
     <View key={weekIndex} style={styles.weekRow}>
       {week.map((dayInfo, dayIndex) => renderDayCell(dayInfo, dayIndex))}
@@ -628,6 +696,10 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   );
 
   const weeks = renderCalendarGrid();
+
+  // --------------------------------------------------------------------------
+  // Main Render
+  // --------------------------------------------------------------------------
 
   return (
     <Modal
@@ -673,35 +745,35 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           <View style={[styles.legendContainer, { backgroundColor: theme.colors.card }]}>
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#4CAF50' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.present }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Present</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#F44336' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.absent }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Absent</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#9C27B0' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.on_leave }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>On Leave</Text>
               </View>
             </View>
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#00BCD4' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.half_day }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Half Day</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#2196F3' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.work_from_home }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>WFH</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#FFC107' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.incomplete }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Incomplete</Text>
               </View>
             </View>
             <View style={styles.legendRow}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: '#FF9800' }]} />
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.od }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>OD</Text>
               </View>
             </View>
@@ -749,7 +821,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                 </Text>
 
                 {allowedLogType === null && (
-                  <Text style={[styles.warningText, { color: '#FF9800' }]}>
+                  <Text style={[styles.warningText, { color: STATUS_COLORS.od }]}>
                     You have already completed both check-in and check-out for this day.
                   </Text>
                 )}
@@ -819,6 +891,10 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     </Modal>
   );
 };
+
+// ============================================================================
+// STYLES
+// ============================================================================
 
 const styles = StyleSheet.create({
   container: {

@@ -120,6 +120,103 @@ export const useFrappeService = () => {
             return mockCheckinData as T[];
           }
 
+          // Mock Work From Home Application data
+          if (doctype === 'Work From Home Application') {
+            const today = new Date();
+            const mockWFHApplications = [
+              {
+                name: 'WFH-TEST-001',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 7).toISOString().split('T')[0],
+                purpose_of_wfh: 'Personal work - Home renovation',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'WFH-TEST-002',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 22).toISOString().split('T')[0],
+                purpose_of_wfh: 'Medical appointment for family member',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-003',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+                purpose_of_wfh: 'Internet connectivity issues at home - need to set up backup',
+                approval_status: 'Rejected',
+                creation: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+                reason_for_rejection: 'Please coordinate with IT department to resolve connectivity issues first',
+              },
+              {
+                name: 'WFH-TEST-004',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 25).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 27).toISOString().split('T')[0],
+                purpose_of_wfh: 'Project deadline - need focused work environment',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 34 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-005',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 10).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 12).toISOString().split('T')[0],
+                purpose_of_wfh: 'Attending online training course',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-006',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 9).toISOString().split('T')[0],
+                purpose_of_wfh: 'Heavy rainfall - commute safety concerns',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 79 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-007',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 17).toISOString().split('T')[0],
+                purpose_of_wfh: 'Scheduled maintenance work at home - need to supervise',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'WFH-TEST-008',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 22).toISOString().split('T')[0],
+                purpose_of_wfh: 'Client meeting scheduled near home location',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 110 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 109 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+            ];
+
+            console.log('📦 Returning mock WFH Application data:', mockWFHApplications.length, 'applications');
+            setLoading(false);
+            return mockWFHApplications as T[];
+          }
+
           // Mock Activity Log data
           if (doctype === 'Activity Log') {
             const mockActivityLog = [

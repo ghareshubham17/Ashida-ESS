@@ -104,6 +104,71 @@ export const useFrappeService = () => {
             return mockCheckinData as T[];
           }
 
+          // Mock Activity Log data
+          if (doctype === 'Activity Log') {
+            const mockActivityLog = [
+              {
+                name: 'ACT-TEST-001',
+                subject: 'Welcome to Ashida ESS',
+                content: 'Your test admin account has been successfully set up. You can now explore all features of the Employee Self Service portal.',
+                creation: new Date().toISOString(),
+                user: 'System'
+              },
+              {
+                name: 'ACT-TEST-002',
+                subject: 'Attendance Check-in Reminder',
+                content: 'Don\'t forget to mark your attendance for today. Check-in and check-out are required for accurate attendance records.',
+                creation: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+                user: 'HR Department'
+              },
+              {
+                name: 'ACT-TEST-003',
+                subject: 'Leave Application Submitted',
+                content: 'Your leave application has been successfully submitted and is pending approval from your manager.',
+                creation: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
+                user: 'Test Administrator'
+              },
+              {
+                name: 'ACT-TEST-004',
+                subject: 'New Feature: Attendance Calendar',
+                content: 'The new attendance calendar feature is now available. You can view your monthly attendance, WFH days, and OD applications in one place.',
+                creation: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+                user: 'Admin'
+              },
+              {
+                name: 'ACT-TEST-005',
+                subject: 'Profile Update Required',
+                content: 'Please review and update your profile information to ensure all details are current.',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+                user: 'HR Department'
+              },
+              {
+                name: 'ACT-TEST-006',
+                subject: 'Work From Home Application Approved',
+                content: 'Your WFH application for next week has been approved by your manager. Please ensure you have all necessary equipment.',
+                creation: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+                user: 'Manager'
+              },
+              {
+                name: 'ACT-TEST-007',
+                subject: 'System Maintenance Notice',
+                content: 'Scheduled maintenance will be performed this weekend. The system may be unavailable for a few hours.',
+                creation: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
+                user: 'IT Department'
+              },
+              {
+                name: 'ACT-TEST-008',
+                subject: 'Monthly Attendance Report',
+                content: 'Your monthly attendance report for the previous month is now available for review in your dashboard.',
+                creation: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
+                user: 'System'
+              }
+            ];
+            console.log('📦 Returning mock Activity Log data:', mockActivityLog.length, 'entries');
+            setLoading(false);
+            return mockActivityLog as T[];
+          }
+
           // For other doctypes, return empty array
           console.log('📦 Returning empty array for doctype:', doctype);
           setLoading(false);

@@ -71,6 +71,507 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK DATA FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - returning mock data for:', doctype);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Mock Employee data
+          if (doctype === 'Employee') {
+            const currentYear = new Date().getFullYear();
+            const mockEmployeeData = [{
+              name: 'EMP-TEST-ADMIN',
+              employee_name: 'Test Administrator',
+              user_id: 'test.admin@ashida.com',
+              status: 'Active',
+              holiday_list: `India Holidays ${currentYear}`
+            }];
+            console.log('📦 Returning mock Employee data:', mockEmployeeData);
+            setLoading(false);
+            return mockEmployeeData as T[];
+          }
+
+          // Mock Holiday List data
+          if (doctype === 'Holiday List') {
+            const currentYear = new Date().getFullYear();
+            const mockHolidayLists = [{
+              name: `India Holidays ${currentYear}`,
+              holiday_list_name: `India Holidays ${currentYear}`,
+              from_date: `${currentYear}-01-01`,
+              to_date: `${currentYear}-12-31`
+            }];
+            console.log('📦 Returning mock Holiday List data:', mockHolidayLists);
+            setLoading(false);
+            return mockHolidayLists as T[];
+          }
+
+          // Mock Employee Checkin data - return locally stored checkins
+          if (doctype === 'Employee Checkin') {
+            const storageKey = `test_admin_checkins`;
+            const existingCheckins = await SecureStore.getItemAsync(storageKey);
+            const mockCheckinData = existingCheckins ? JSON.parse(existingCheckins) : [];
+            console.log('📦 Returning locally stored Employee Checkin data:', mockCheckinData);
+            setLoading(false);
+            return mockCheckinData as T[];
+          }
+
+          // Mock Work From Home Application data - merge with locally stored submissions
+          if (doctype === 'Work From Home Application') {
+            const today = new Date();
+            const defaultMockWFHApplications = [
+              {
+                name: 'WFH-TEST-001',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 7).toISOString().split('T')[0],
+                purpose_of_wfh: 'Personal work - Home renovation',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'WFH-TEST-002',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 22).toISOString().split('T')[0],
+                purpose_of_wfh: 'Medical appointment for family member',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-003',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+                purpose_of_wfh: 'Internet connectivity issues at home - need to set up backup',
+                approval_status: 'Rejected',
+                creation: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+                reason_for_rejection: 'Please coordinate with IT department to resolve connectivity issues first',
+              },
+              {
+                name: 'WFH-TEST-004',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 25).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 27).toISOString().split('T')[0],
+                purpose_of_wfh: 'Project deadline - need focused work environment',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 34 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-005',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 10).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 12).toISOString().split('T')[0],
+                purpose_of_wfh: 'Attending online training course',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-006',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 9).toISOString().split('T')[0],
+                purpose_of_wfh: 'Heavy rainfall - commute safety concerns',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 79 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-007',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 17).toISOString().split('T')[0],
+                purpose_of_wfh: 'Scheduled maintenance work at home - need to supervise',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'WFH-TEST-008',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 22).toISOString().split('T')[0],
+                purpose_of_wfh: 'Client meeting scheduled near home location',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 110 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 109 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              },
+            ];
+
+            // Get locally stored WFH applications submitted by user
+            const storageKey = 'test_admin_wfh_applications';
+            const storedWFHApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = storedWFHApps ? JSON.parse(storedWFHApps) : [];
+
+            // Merge default mock data with user-submitted applications
+            const allApplications = [...userSubmittedApps, ...defaultMockWFHApplications];
+
+            console.log('📦 Returning mock WFH Application data:', allApplications.length, 'applications (', userSubmittedApps.length, 'user-submitted +', defaultMockWFHApplications.length, 'default)');
+            setLoading(false);
+            return allApplications as T[];
+          }
+
+          // Mock OD Application data - merge with locally stored submissions
+          if (doctype === 'OD Application') {
+            const today = new Date();
+            const defaultMockODApplications = [
+              {
+                name: 'OD-TEST-001',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 8).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 10).toISOString().split('T')[0],
+                od_type: 'Client Visit',
+                od_type_description: 'Meeting with client for project requirements',
+                per_day_rate: 500,
+                location: 'Mumbai Office',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'OD-TEST-002',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 18).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 19).toISOString().split('T')[0],
+                od_type: 'Training',
+                od_type_description: 'Attending technical workshop on React Native',
+                per_day_rate: 450,
+                location: 'Hyderabad Training Center',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Manager Name',
+              },
+              {
+                name: 'OD-TEST-003',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_type: 'Site Visit',
+                od_type_description: 'Server room inspection and maintenance',
+                per_day_rate: 400,
+                location: 'Client Data Center - Pune',
+                approval_status: 'Rejected',
+                creation: new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_rejection: new Date(Date.now() - 17 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                rejected_by: 'HR Manager',
+                reason_for_rejection: 'Insufficient justification for on-duty request',
+              },
+              {
+                name: 'OD-TEST-004',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 22).toISOString().split('T')[0],
+                od_type: 'Conference',
+                od_type_description: 'Technology conference and networking event',
+                per_day_rate: 600,
+                location: 'Delhi Convention Center',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 39 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Department Head',
+              },
+              {
+                name: 'OD-TEST-005',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 5).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 7).toISOString().split('T')[0],
+                od_type: 'Installation',
+                od_type_description: 'Software deployment at client location',
+                per_day_rate: 550,
+                location: 'Chennai Branch Office',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 54 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Project Manager',
+              },
+              {
+                name: 'OD-TEST-006',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 15).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 17).toISOString().split('T')[0],
+                od_type: 'Client Meeting',
+                od_type_description: 'Project review and planning session with stakeholders',
+                per_day_rate: 500,
+                location: 'Kolkata Client Office',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 85 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 84 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Team Lead',
+              },
+              {
+                name: 'OD-TEST-007',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 25).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 27).toISOString().split('T')[0],
+                od_type: 'Audit',
+                od_type_description: 'IT infrastructure audit and compliance check',
+                per_day_rate: 480,
+                location: 'Ahmedabad Branch',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'OD-TEST-008',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 10).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 12).toISOString().split('T')[0],
+                od_type: 'Vendor Meeting',
+                od_type_description: 'Contract negotiation and vendor evaluation',
+                per_day_rate: 520,
+                location: 'Gurgaon Corporate Park',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 115 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 114 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Senior Manager',
+              },
+            ];
+
+            // Get locally stored OD applications submitted by user
+            const storageKey = 'test_admin_od_applications';
+            const storedODApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = storedODApps ? JSON.parse(storedODApps) : [];
+
+            // Merge default mock data with user-submitted applications
+            const allApplications = [...userSubmittedApps, ...defaultMockODApplications];
+
+            console.log('📦 Returning mock OD Application data:', allApplications.length, 'applications (', userSubmittedApps.length, 'user-submitted +', defaultMockODApplications.length, 'default)');
+            setLoading(false);
+            return allApplications as T[];
+          }
+
+          // Mock Leave Application data - merge with locally stored submissions
+          if (doctype === 'Leave Application') {
+            const today = new Date();
+            const defaultMockLeaveApplications = [
+              {
+                name: 'LEAVE-TEST-001',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Casual Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth() + 1, 12).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() + 1, 14).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Personal work - family function',
+                status: 'Open',
+                posting_date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'LEAVE-TEST-002',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Sick Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth(), 22).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth(), 23).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Medical appointment and recovery',
+                status: 'Approved',
+                posting_date: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'Manager Name',
+              },
+              {
+                name: 'LEAVE-TEST-003',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Privilege Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Half Day (First Half)',
+                custom_till_date_leave_value: 'Half Day (First Half)',
+                description: 'Urgent personal work',
+                status: 'Rejected',
+                posting_date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'HR Manager',
+              },
+              {
+                name: 'LEAVE-TEST-004',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Casual Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 1, 18).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Short vacation with family',
+                status: 'Approved',
+                posting_date: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'Team Lead',
+              },
+              {
+                name: 'LEAVE-TEST-005',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Sick Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 1, 8).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 1, 9).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Fever and cold symptoms',
+                status: 'Approved',
+                posting_date: new Date(Date.now() - 52 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 52 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'Manager Name',
+              },
+              {
+                name: 'LEAVE-TEST-006',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Privilege Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 2, 10).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 2, 14).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Planned vacation - hill station trip',
+                status: 'Approved',
+                posting_date: new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'Department Head',
+              },
+              {
+                name: 'LEAVE-TEST-007',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Casual Leave',
+                from_date: new Date(today.getFullYear(), today.getMonth() + 1, 5).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() + 1, 6).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Half Day (First Half)',
+                description: 'Attending wedding ceremony',
+                status: 'Open',
+                posting_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'LEAVE-TEST-008',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                leave_type: 'Compensatory Off',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 3, 25).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 3, 25).toISOString().split('T')[0],
+                custom_from_date_leave_value: 'Full Day',
+                custom_till_date_leave_value: 'Full Day',
+                description: 'Comp off for weekend work',
+                status: 'Approved',
+                posting_date: new Date(Date.now() - 110 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                creation: new Date(Date.now() - 110 * 24 * 60 * 60 * 1000).toISOString(),
+                leave_approver: 'Project Manager',
+              },
+            ];
+
+            // Get locally stored Leave applications submitted by user
+            const storageKey = 'test_admin_leave_applications';
+            const storedLeaveApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = storedLeaveApps ? JSON.parse(storedLeaveApps) : [];
+
+            // Merge default mock data with user-submitted applications
+            const allApplications = [...userSubmittedApps, ...defaultMockLeaveApplications];
+
+            console.log('📦 Returning mock Leave Application data:', allApplications.length, 'applications (', userSubmittedApps.length, 'user-submitted +', defaultMockLeaveApplications.length, 'default)');
+            setLoading(false);
+            return allApplications as T[];
+          }
+
+          // Mock Activity Log data
+          if (doctype === 'Activity Log') {
+            const mockActivityLog = [
+              {
+                name: 'ACT-TEST-001',
+                subject: 'Welcome to Ashida ESS',
+                content: 'Your test admin account has been successfully set up. You can now explore all features of the Employee Self Service portal.',
+                creation: new Date().toISOString(),
+                user: 'System'
+              },
+              {
+                name: 'ACT-TEST-002',
+                subject: 'Attendance Check-in Reminder',
+                content: 'Don\'t forget to mark your attendance for today. Check-in and check-out are required for accurate attendance records.',
+                creation: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+                user: 'HR Department'
+              },
+              {
+                name: 'ACT-TEST-003',
+                subject: 'Leave Application Submitted',
+                content: 'Your leave application has been successfully submitted and is pending approval from your manager.',
+                creation: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
+                user: 'Test Administrator'
+              },
+              {
+                name: 'ACT-TEST-004',
+                subject: 'New Feature: Attendance Calendar',
+                content: 'The new attendance calendar feature is now available. You can view your monthly attendance, WFH days, and OD applications in one place.',
+                creation: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+                user: 'Admin'
+              },
+              {
+                name: 'ACT-TEST-005',
+                subject: 'Profile Update Required',
+                content: 'Please review and update your profile information to ensure all details are current.',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+                user: 'HR Department'
+              },
+              {
+                name: 'ACT-TEST-006',
+                subject: 'Work From Home Application Approved',
+                content: 'Your WFH application for next week has been approved by your manager. Please ensure you have all necessary equipment.',
+                creation: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+                user: 'Manager'
+              },
+              {
+                name: 'ACT-TEST-007',
+                subject: 'System Maintenance Notice',
+                content: 'Scheduled maintenance will be performed this weekend. The system may be unavailable for a few hours.',
+                creation: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
+                user: 'IT Department'
+              },
+              {
+                name: 'ACT-TEST-008',
+                subject: 'Monthly Attendance Report',
+                content: 'Your monthly attendance report for the previous month is now available for review in your dashboard.',
+                creation: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
+                user: 'System'
+              }
+            ];
+            console.log('📦 Returning mock Activity Log data:', mockActivityLog.length, 'entries');
+            setLoading(false);
+            return mockActivityLog as T[];
+          }
+
+          // For other doctypes, return empty array
+          console.log('📦 Returning empty array for doctype:', doctype);
+          setLoading(false);
+          return [] as T[];
+        }
+        // ========================================================================
+        // END MOCK DATA
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }
@@ -127,6 +628,104 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK GET DOC FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - returning mock doc for:', doctype, name);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Mock Employee profile details
+          if (doctype === 'Employee' && name === 'EMP-TEST-ADMIN') {
+            const mockEmployeeProfile = {
+              name: 'EMP-TEST-ADMIN',
+              employee_name: 'Test Administrator',
+              employee_number: 'EMP-2025-001',
+              designation: 'Senior Software Engineer',
+              department: 'Information Technology',
+              company: 'Ashida Business Solutions',
+              branch: 'Bangalore - Head Office',
+              gender: 'Male',
+              date_of_birth: '1990-05-15',
+              date_of_joining: '2020-01-10',
+              status: 'Active',
+              company_email: 'test.admin@ashida.com',
+              user_id: 'test.admin@ashida.com',
+              personal_email: 'testadmin.personal@gmail.com',
+              cell_number: '+91 9876543210',
+              current_address: '123 MG Road, Koramangala, Bangalore - 560095, Karnataka, India',
+              permanent_address: '456 Residency Road, Jayanagar, Bangalore - 560041, Karnataka, India',
+              reports_to: 'John Doe (Manager)',
+              attendance_device_id: 'TEST-DEVICE-001',
+              employment_type: 'Full-time',
+              blood_group: 'O+',
+              marital_status: 'Single',
+              pan_number: 'ABCDE1234F',
+              aadhaar_number: '1234 5678 9012',
+              notice_number_of_days: 30,
+              prefered_contact_email: 'test.admin@ashida.com',
+              emergency_phone_number: '+91 9876543211',
+              person_to_be_contacted: 'Jane Doe (Sister)',
+            };
+
+            console.log('📦 Returning mock Employee profile:', mockEmployeeProfile);
+            setLoading(false);
+            return mockEmployeeProfile as T;
+          }
+
+          // Mock Holiday List document - handle any year dynamically
+          if (doctype === 'Holiday List' && name.startsWith('India Holidays')) {
+            const currentYear = new Date().getFullYear();
+
+            // Generate holidays for the current year
+            const mockHolidayListDoc = {
+              name: `India Holidays ${currentYear}`,
+              holiday_list_name: `India Holidays ${currentYear}`,
+              from_date: `${currentYear}-01-01`,
+              to_date: `${currentYear}-12-31`,
+              holidays: [
+                { holiday_date: `${currentYear}-01-26`, description: 'Republic Day' },
+                { holiday_date: `${currentYear}-03-14`, description: 'Holi' },
+                { holiday_date: `${currentYear}-03-31`, description: 'Eid ul-Fitr' },
+                { holiday_date: `${currentYear}-04-14`, description: 'Ugadi / Gudi Padwa' },
+                { holiday_date: `${currentYear}-04-18`, description: 'Good Friday' },
+                { holiday_date: `${currentYear}-05-01`, description: 'May Day / Labour Day' },
+                { holiday_date: `${currentYear}-06-07`, description: 'Eid ul-Adha' },
+                { holiday_date: `${currentYear}-08-15`, description: 'Independence Day' },
+                { holiday_date: `${currentYear}-08-27`, description: 'Janmashtami' },
+                { holiday_date: `${currentYear}-10-02`, description: 'Gandhi Jayanti' },
+                { holiday_date: `${currentYear}-10-12`, description: 'Dussehra / Vijaya Dashami' },
+                { holiday_date: `${currentYear}-10-20`, description: 'Diwali' },
+                { holiday_date: `${currentYear}-10-21`, description: 'Diwali (Second Day)' },
+                { holiday_date: `${currentYear}-11-05`, description: 'Guru Nanak Jayanti' },
+                { holiday_date: `${currentYear}-12-25`, description: 'Christmas Day' },
+              ]
+            };
+
+            console.log('📦 Returning mock Holiday List document for year', currentYear, 'with', mockHolidayListDoc.holidays.length, 'holidays');
+            setLoading(false);
+            return mockHolidayListDoc as T;
+          }
+
+          // For other documents, return mock data
+          const mockDoc = {
+            name: name,
+            doctype: doctype,
+            creation: new Date().toISOString(),
+            modified: new Date().toISOString(),
+          };
+
+          console.log('📦 Returning mock document:', mockDoc);
+          setLoading(false);
+          return mockDoc as T;
+        }
+        // ========================================================================
+        // END MOCK GET DOC
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }
@@ -160,6 +759,380 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK CREATE FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - mocking create for:', doctype);
+          console.log('📦 Data to create:', doc);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Mock Employee Checkin creation
+          if (doctype === 'Employee Checkin') {
+            const mockCheckinRecord = {
+              name: `EMP-CHECKIN-TEST-${Date.now()}`,
+              employee: doc.employee,
+              time: doc.time,
+              log_type: doc.log_type,
+              device_id: doc.device_id,
+              creation: doc.time,
+              modified: doc.time,
+              docstatus: 1
+            };
+
+            // Store locally in SecureStore
+            const storageKey = `test_admin_checkins`;
+            const existingCheckins = await SecureStore.getItemAsync(storageKey);
+            const checkins = existingCheckins ? JSON.parse(existingCheckins) : [];
+            checkins.push(mockCheckinRecord);
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(checkins));
+
+            console.log('✅ Mock Employee Checkin created locally:', mockCheckinRecord);
+            console.log('📍 Location stored:', doc.device_id);
+
+            setLoading(false);
+            return mockCheckinRecord as T;
+          }
+
+          // Mock Work From Home Application creation
+          if (doctype === 'Work From Home Application') {
+            // Validation: Check for duplicate date ranges
+            const newStartDate = new Date(doc.wfh_start_date);
+            const newEndDate = new Date(doc.wfh_end_date);
+
+            // Get all existing WFH applications (user-submitted + default mock data)
+            const storageKey = 'test_admin_wfh_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = existingApps ? JSON.parse(existingApps) : [];
+
+            // Default mock WFH applications for validation
+            const today = new Date();
+            const defaultMockWFHApplications = [
+              {
+                name: 'WFH-TEST-001',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 7).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-002',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 22).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-003',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-004',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 25).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 27).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-005',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 10).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 12).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-006',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 5).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 9).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-007',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 15).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 17).toISOString().split('T')[0],
+              },
+              {
+                name: 'WFH-TEST-008',
+                wfh_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 20).toISOString().split('T')[0],
+                wfh_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 22).toISOString().split('T')[0],
+              },
+            ];
+
+            // Merge all applications for validation
+            const allApplications = [...userSubmittedApps, ...defaultMockWFHApplications];
+
+            // Check for date range overlap
+            for (const app of allApplications) {
+              const existingStartDate = new Date(app.wfh_start_date);
+              const existingEndDate = new Date(app.wfh_end_date);
+
+              // Check if date ranges overlap
+              // Ranges overlap if: new_start <= existing_end AND new_end >= existing_start
+              if (newStartDate <= existingEndDate && newEndDate >= existingStartDate) {
+                const formatDate = (date: Date) => date.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                });
+
+                setLoading(false);
+                throw new Error(
+                  `This date range overlaps with an existing WFH application (${formatDate(existingStartDate)} - ${formatDate(existingEndDate)}). Please choose different dates.`
+                );
+              }
+            }
+
+            // No overlap, create the application
+            const mockWFHRecord = {
+              name: `WFH-USER-${Date.now()}`,
+              employee: doc.employee,
+              employee_name: doc.employee_name,
+              department: doc.department,
+              attendance_device_id: doc.attendance_device_id,
+              wfh_start_date: doc.wfh_start_date,
+              wfh_end_date: doc.wfh_end_date,
+              purpose_of_wfh: doc.purpose_of_wfh,
+              approval_status: doc.approval_status || 'Pending',
+              creation: new Date().toISOString(),
+              modified: new Date().toISOString(),
+              docstatus: 0
+            };
+
+            // Store locally in SecureStore
+            userSubmittedApps.unshift(mockWFHRecord); // Add to beginning (newest first)
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(userSubmittedApps));
+
+            console.log('✅ Mock WFH Application created locally:', mockWFHRecord);
+
+            setLoading(false);
+            return mockWFHRecord as T;
+          }
+
+          // Mock OD Application creation with date validation
+          if (doctype === 'OD Application') {
+            // Validation: Check for duplicate date ranges
+            const newStartDate = new Date(doc.od_start_date);
+            const newEndDate = new Date(doc.od_end_date);
+
+            // Get all existing OD applications (user-submitted + default mock data)
+            const storageKey = 'test_admin_od_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = existingApps ? JSON.parse(existingApps) : [];
+
+            // Default mock OD applications for validation
+            const today = new Date();
+            const defaultMockODApplications = [
+              {
+                name: 'OD-TEST-001',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 8).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 10).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-002',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 18).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 19).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-003',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-004',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 22).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-005',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 5).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 7).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-006',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 15).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 17).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-007',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 25).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 27).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-008',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 10).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 12).toISOString().split('T')[0],
+              },
+            ];
+
+            // Merge all applications for validation
+            const allApplications = [...userSubmittedApps, ...defaultMockODApplications];
+
+            // Check for date range overlap
+            for (const app of allApplications) {
+              const existingStartDate = new Date(app.od_start_date);
+              const existingEndDate = new Date(app.od_end_date);
+
+              // Check if date ranges overlap
+              if (newStartDate <= existingEndDate && newEndDate >= existingStartDate) {
+                const formatDate = (date: Date) => date.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                });
+
+                setLoading(false);
+                throw new Error(
+                  `This date range overlaps with an existing OD application (${formatDate(existingStartDate)} - ${formatDate(existingEndDate)}). Please choose different dates.`
+                );
+              }
+            }
+
+            // No overlap, create the application
+            const mockODRecord = {
+              name: `OD-USER-${Date.now()}`,
+              employee: doc.employee,
+              employee_name: doc.employee_name,
+              od_start_date: doc.od_start_date,
+              od_end_date: doc.od_end_date,
+              od_type: doc.od_type,
+              od_type_description: doc.od_type_description,
+              per_day_rate: doc.per_day_rate || 0,
+              location: doc.location,
+              approval_status: doc.approval_status || 'Pending',
+              creation: new Date().toISOString(),
+              modified: new Date().toISOString(),
+              docstatus: 0
+            };
+
+            // Store locally in SecureStore
+            userSubmittedApps.unshift(mockODRecord); // Add to beginning (newest first)
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(userSubmittedApps));
+
+            console.log('✅ Mock OD Application created locally:', mockODRecord);
+
+            setLoading(false);
+            return mockODRecord as T;
+          }
+
+          // Mock Leave Application creation with date validation
+          if (doctype === 'Leave Application') {
+            // Validation: Check for duplicate date ranges
+            const newStartDate = new Date(doc.from_date);
+            const newEndDate = new Date(doc.to_date);
+
+            // Get all existing Leave applications (user-submitted + default mock data)
+            const storageKey = 'test_admin_leave_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = existingApps ? JSON.parse(existingApps) : [];
+
+            // Default mock Leave applications for validation
+            const today = new Date();
+            const defaultMockLeaveApplications = [
+              {
+                name: 'LEAVE-TEST-001',
+                from_date: new Date(today.getFullYear(), today.getMonth() + 1, 12).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() + 1, 14).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-002',
+                from_date: new Date(today.getFullYear(), today.getMonth(), 22).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth(), 23).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-003',
+                from_date: new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-004',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 1, 18).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-005',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 1, 8).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 1, 9).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-006',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 2, 10).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 2, 14).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-007',
+                from_date: new Date(today.getFullYear(), today.getMonth() + 1, 5).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() + 1, 6).toISOString().split('T')[0],
+              },
+              {
+                name: 'LEAVE-TEST-008',
+                from_date: new Date(today.getFullYear(), today.getMonth() - 3, 25).toISOString().split('T')[0],
+                to_date: new Date(today.getFullYear(), today.getMonth() - 3, 25).toISOString().split('T')[0],
+              },
+            ];
+
+            // Merge all applications for validation
+            const allApplications = [...userSubmittedApps, ...defaultMockLeaveApplications];
+
+            // Check for date range overlap
+            for (const app of allApplications) {
+              const existingStartDate = new Date(app.from_date);
+              const existingEndDate = new Date(app.to_date);
+
+              // Check if date ranges overlap
+              if (newStartDate <= existingEndDate && newEndDate >= existingStartDate) {
+                const formatDate = (date: Date) => date.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                });
+
+                setLoading(false);
+                throw new Error(
+                  `This date range overlaps with an existing Leave application (${formatDate(existingStartDate)} - ${formatDate(existingEndDate)}). Please choose different dates.`
+                );
+              }
+            }
+
+            // No overlap, create the application
+            const mockLeaveRecord = {
+              name: `LEAVE-USER-${Date.now()}`,
+              employee: doc.employee,
+              employee_name: doc.employee_name,
+              leave_type: doc.leave_type,
+              from_date: doc.from_date,
+              to_date: doc.to_date,
+              custom_from_date_leave_value: doc.custom_from_date_leave_value,
+              custom_till_date_leave_value: doc.custom_till_date_leave_value,
+              description: doc.description,
+              status: doc.status || 'Open',
+              posting_date: new Date().toISOString().split('T')[0],
+              creation: new Date().toISOString(),
+              modified: new Date().toISOString(),
+              docstatus: 0
+            };
+
+            // Store locally in SecureStore
+            userSubmittedApps.unshift(mockLeaveRecord); // Add to beginning (newest first)
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(userSubmittedApps));
+
+            console.log('✅ Mock Leave Application created locally:', mockLeaveRecord);
+
+            setLoading(false);
+            return mockLeaveRecord as T;
+          }
+
+          // For other doctypes, return mock success
+          const mockDoc = {
+            name: `MOCK-${doctype}-${Date.now()}`,
+            ...doc,
+            creation: new Date().toISOString(),
+            modified: new Date().toISOString(),
+            docstatus: 1
+          };
+
+          console.log('✅ Mock document created locally:', mockDoc);
+          setLoading(false);
+          return mockDoc as T;
+        }
+        // ========================================================================
+        // END MOCK CREATE
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }
@@ -179,7 +1152,14 @@ export const useFrappeService = () => {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create document';
         setError(errorMessage);
-        console.error(`Error creating ${doctype}:`, err);
+
+        // Don't log validation errors for test_admin (they're expected user-facing messages)
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        const isValidationError = err instanceof Error && err.message.includes('overlaps with an existing');
+        if (!(apiKey === 'dummy_api_key_test_admin' && isValidationError)) {
+          console.error(`Error creating ${doctype}:`, err);
+        }
+
         throw err;
       } finally {
         setLoading(false);
@@ -261,6 +1241,83 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK SUBMIT DOC FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - mocking submit for:', doctype, name);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // For WFH Application, update docstatus in local storage
+          if (doctype === 'Work From Home Application') {
+            const storageKey = 'test_admin_wfh_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            if (existingApps) {
+              const applications = JSON.parse(existingApps);
+              const appIndex = applications.findIndex((app: any) => app.name === name);
+              if (appIndex !== -1) {
+                applications[appIndex].docstatus = 1;
+                await SecureStore.setItemAsync(storageKey, JSON.stringify(applications));
+                console.log('✅ Mock WFH Application submitted (docstatus = 1)');
+                setLoading(false);
+                return applications[appIndex] as T;
+              }
+            }
+          }
+
+          // For OD Application, update docstatus in local storage
+          if (doctype === 'OD Application') {
+            const storageKey = 'test_admin_od_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            if (existingApps) {
+              const applications = JSON.parse(existingApps);
+              const appIndex = applications.findIndex((app: any) => app.name === name);
+              if (appIndex !== -1) {
+                applications[appIndex].docstatus = 1;
+                await SecureStore.setItemAsync(storageKey, JSON.stringify(applications));
+                console.log('✅ Mock OD Application submitted (docstatus = 1)');
+                setLoading(false);
+                return applications[appIndex] as T;
+              }
+            }
+          }
+
+          // For Leave Application, update docstatus in local storage
+          if (doctype === 'Leave Application') {
+            const storageKey = 'test_admin_leave_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            if (existingApps) {
+              const applications = JSON.parse(existingApps);
+              const appIndex = applications.findIndex((app: any) => app.name === name);
+              if (appIndex !== -1) {
+                applications[appIndex].docstatus = 1;
+                await SecureStore.setItemAsync(storageKey, JSON.stringify(applications));
+                console.log('✅ Mock Leave Application submitted (docstatus = 1)');
+                setLoading(false);
+                return applications[appIndex] as T;
+              }
+            }
+          }
+
+          // For other documents, return mock success
+          const mockSubmitResult = {
+            name: name,
+            doctype: doctype,
+            docstatus: 1,
+            modified: new Date().toISOString(),
+          };
+
+          console.log('✅ Mock document submitted:', mockSubmitResult);
+          setLoading(false);
+          return mockSubmitResult as T;
+        }
+        // ========================================================================
+        // END MOCK SUBMIT DOC
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }
@@ -301,6 +1358,41 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK API CALLS FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - mocking API call for:', method);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Mock get_leave_type API call
+          if (method === 'ashida.ashida_gaxis.api.mobile_auth.get_leave_type') {
+            const mockLeaveTypes = {
+              message: [
+                { name: 'Casual Leave', value: 'Casual Leave' },
+                { name: 'Sick Leave', value: 'Sick Leave' },
+                { name: 'Privilege Leave', value: 'Privilege Leave' },
+                { name: 'Compensatory Off', value: 'Compensatory Off' },
+                { name: 'Leave Without Pay', value: 'Leave Without Pay' },
+              ]
+            };
+            console.log('📦 Returning mock leave types:', mockLeaveTypes);
+            setLoading(false);
+            return mockLeaveTypes as T;
+          }
+
+          // For other API calls, return empty success
+          console.log('📦 Returning mock success for API call:', method);
+          setLoading(false);
+          return { message: 'Success' } as T;
+        }
+        // ========================================================================
+        // END MOCK API CALLS
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }

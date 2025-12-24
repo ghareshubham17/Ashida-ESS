@@ -474,6 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear test_admin data if exists
       await secureStorage.deleteItemAsync('test_admin_checkins');
       await secureStorage.deleteItemAsync('test_admin_wfh_applications');
+      await secureStorage.deleteItemAsync('test_admin_od_applications');
     } catch (error) {
       console.error('Failed to clear stored data:', error);
     }

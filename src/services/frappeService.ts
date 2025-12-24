@@ -225,6 +225,142 @@ export const useFrappeService = () => {
             return allApplications as T[];
           }
 
+          // Mock OD Application data - merge with locally stored submissions
+          if (doctype === 'OD Application') {
+            const today = new Date();
+            const defaultMockODApplications = [
+              {
+                name: 'OD-TEST-001',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 8).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 10).toISOString().split('T')[0],
+                od_type: 'Client Visit',
+                od_type_description: 'Meeting with client for project requirements',
+                per_day_rate: 500,
+                location: 'Mumbai Office',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'OD-TEST-002',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 18).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 19).toISOString().split('T')[0],
+                od_type: 'Training',
+                od_type_description: 'Attending technical workshop on React Native',
+                per_day_rate: 450,
+                location: 'Hyderabad Training Center',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Manager Name',
+              },
+              {
+                name: 'OD-TEST-003',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_type: 'Site Visit',
+                od_type_description: 'Server room inspection and maintenance',
+                per_day_rate: 400,
+                location: 'Client Data Center - Pune',
+                approval_status: 'Rejected',
+                creation: new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_rejection: new Date(Date.now() - 17 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                rejected_by: 'HR Manager',
+                reason_for_rejection: 'Insufficient justification for on-duty request',
+              },
+              {
+                name: 'OD-TEST-004',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 22).toISOString().split('T')[0],
+                od_type: 'Conference',
+                od_type_description: 'Technology conference and networking event',
+                per_day_rate: 600,
+                location: 'Delhi Convention Center',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 39 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Department Head',
+              },
+              {
+                name: 'OD-TEST-005',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 5).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 7).toISOString().split('T')[0],
+                od_type: 'Installation',
+                od_type_description: 'Software deployment at client location',
+                per_day_rate: 550,
+                location: 'Chennai Branch Office',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 54 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Project Manager',
+              },
+              {
+                name: 'OD-TEST-006',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 15).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 17).toISOString().split('T')[0],
+                od_type: 'Client Meeting',
+                od_type_description: 'Project review and planning session with stakeholders',
+                per_day_rate: 500,
+                location: 'Kolkata Client Office',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 85 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 84 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Team Lead',
+              },
+              {
+                name: 'OD-TEST-007',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 25).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 27).toISOString().split('T')[0],
+                od_type: 'Audit',
+                od_type_description: 'IT infrastructure audit and compliance check',
+                per_day_rate: 480,
+                location: 'Ahmedabad Branch',
+                approval_status: 'Pending',
+                creation: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              {
+                name: 'OD-TEST-008',
+                employee: 'EMP-TEST-ADMIN',
+                employee_name: 'Test Administrator',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 10).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 12).toISOString().split('T')[0],
+                od_type: 'Vendor Meeting',
+                od_type_description: 'Contract negotiation and vendor evaluation',
+                per_day_rate: 520,
+                location: 'Gurgaon Corporate Park',
+                approval_status: 'Approved',
+                creation: new Date(Date.now() - 115 * 24 * 60 * 60 * 1000).toISOString(),
+                date_of_approval: new Date(Date.now() - 114 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                approved_by: 'Senior Manager',
+              },
+            ];
+
+            // Get locally stored OD applications submitted by user
+            const storageKey = 'test_admin_od_applications';
+            const storedODApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = storedODApps ? JSON.parse(storedODApps) : [];
+
+            // Merge default mock data with user-submitted applications
+            const allApplications = [...userSubmittedApps, ...defaultMockODApplications];
+
+            console.log('📦 Returning mock OD Application data:', allApplications.length, 'applications (', userSubmittedApps.length, 'user-submitted +', defaultMockODApplications.length, 'default)');
+            setLoading(false);
+            return allApplications as T[];
+          }
+
           // Mock Activity Log data
           if (doctype === 'Activity Log') {
             const mockActivityLog = [
@@ -630,6 +766,112 @@ export const useFrappeService = () => {
             return mockWFHRecord as T;
           }
 
+          // Mock OD Application creation with date validation
+          if (doctype === 'OD Application') {
+            // Validation: Check for duplicate date ranges
+            const newStartDate = new Date(doc.od_start_date);
+            const newEndDate = new Date(doc.od_end_date);
+
+            // Get all existing OD applications (user-submitted + default mock data)
+            const storageKey = 'test_admin_od_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            const userSubmittedApps = existingApps ? JSON.parse(existingApps) : [];
+
+            // Default mock OD applications for validation
+            const today = new Date();
+            const defaultMockODApplications = [
+              {
+                name: 'OD-TEST-001',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 8).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 10).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-002',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 18).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 19).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-003',
+                od_start_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth(), 12).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-004',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 20).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 22).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-005',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 1, 5).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 1, 7).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-006',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 2, 15).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 2, 17).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-007',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() + 1, 25).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() + 1, 27).toISOString().split('T')[0],
+              },
+              {
+                name: 'OD-TEST-008',
+                od_start_date: new Date(today.getFullYear(), today.getMonth() - 3, 10).toISOString().split('T')[0],
+                od_end_date: new Date(today.getFullYear(), today.getMonth() - 3, 12).toISOString().split('T')[0],
+              },
+            ];
+
+            // Merge all applications for validation
+            const allApplications = [...userSubmittedApps, ...defaultMockODApplications];
+
+            // Check for date range overlap
+            for (const app of allApplications) {
+              const existingStartDate = new Date(app.od_start_date);
+              const existingEndDate = new Date(app.od_end_date);
+
+              // Check if date ranges overlap
+              if (newStartDate <= existingEndDate && newEndDate >= existingStartDate) {
+                const formatDate = (date: Date) => date.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                });
+
+                setLoading(false);
+                throw new Error(
+                  `This date range overlaps with an existing OD application (${formatDate(existingStartDate)} - ${formatDate(existingEndDate)}). Please choose different dates.`
+                );
+              }
+            }
+
+            // No overlap, create the application
+            const mockODRecord = {
+              name: `OD-USER-${Date.now()}`,
+              employee: doc.employee,
+              employee_name: doc.employee_name,
+              od_start_date: doc.od_start_date,
+              od_end_date: doc.od_end_date,
+              od_type: doc.od_type,
+              od_type_description: doc.od_type_description,
+              per_day_rate: doc.per_day_rate || 0,
+              location: doc.location,
+              approval_status: doc.approval_status || 'Pending',
+              creation: new Date().toISOString(),
+              modified: new Date().toISOString(),
+              docstatus: 0
+            };
+
+            // Store locally in SecureStore
+            userSubmittedApps.unshift(mockODRecord); // Add to beginning (newest first)
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(userSubmittedApps));
+
+            console.log('✅ Mock OD Application created locally:', mockODRecord);
+
+            setLoading(false);
+            return mockODRecord as T;
+          }
+
           // For other doctypes, return mock success
           const mockDoc = {
             name: `MOCK-${doctype}-${Date.now()}`,
@@ -776,6 +1018,23 @@ export const useFrappeService = () => {
                 applications[appIndex].docstatus = 1;
                 await SecureStore.setItemAsync(storageKey, JSON.stringify(applications));
                 console.log('✅ Mock WFH Application submitted (docstatus = 1)');
+                setLoading(false);
+                return applications[appIndex] as T;
+              }
+            }
+          }
+
+          // For OD Application, update docstatus in local storage
+          if (doctype === 'OD Application') {
+            const storageKey = 'test_admin_od_applications';
+            const existingApps = await SecureStore.getItemAsync(storageKey);
+            if (existingApps) {
+              const applications = JSON.parse(existingApps);
+              const appIndex = applications.findIndex((app: any) => app.name === name);
+              if (appIndex !== -1) {
+                applications[appIndex].docstatus = 1;
+                await SecureStore.setItemAsync(storageKey, JSON.stringify(applications));
+                console.log('✅ Mock OD Application submitted (docstatus = 1)');
                 setLoading(false);
                 return applications[appIndex] as T;
               }

@@ -71,6 +71,48 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK DATA FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - returning mock data for:', doctype);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Mock Employee data
+          if (doctype === 'Employee') {
+            const mockEmployeeData = [{
+              name: 'EMP-TEST-ADMIN',
+              employee_name: 'Test Administrator',
+              user_id: 'test.admin@ashida.com',
+              status: 'Active'
+            }];
+            console.log('📦 Returning mock Employee data:', mockEmployeeData);
+            setLoading(false);
+            return mockEmployeeData as T[];
+          }
+
+          // Mock Employee Checkin data - return locally stored checkins
+          if (doctype === 'Employee Checkin') {
+            const storageKey = `test_admin_checkins`;
+            const existingCheckins = await SecureStore.getItemAsync(storageKey);
+            const mockCheckinData = existingCheckins ? JSON.parse(existingCheckins) : [];
+            console.log('📦 Returning locally stored Employee Checkin data:', mockCheckinData);
+            setLoading(false);
+            return mockCheckinData as T[];
+          }
+
+          // For other doctypes, return empty array
+          console.log('📦 Returning empty array for doctype:', doctype);
+          setLoading(false);
+          return [] as T[];
+        }
+        // ========================================================================
+        // END MOCK DATA
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }
@@ -160,6 +202,61 @@ export const useFrappeService = () => {
       setError(null);
 
       try {
+        // ========================================================================
+        // MOCK CREATE FOR TEST ADMIN USER
+        // ========================================================================
+        const apiKey = await SecureStore.getItemAsync('api_key');
+        if (apiKey === 'dummy_api_key_test_admin') {
+          console.log('🔧 Test admin detected - mocking create for:', doctype);
+          console.log('📦 Data to create:', doc);
+
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Mock Employee Checkin creation
+          if (doctype === 'Employee Checkin') {
+            const mockCheckinRecord = {
+              name: `EMP-CHECKIN-TEST-${Date.now()}`,
+              employee: doc.employee,
+              time: doc.time,
+              log_type: doc.log_type,
+              device_id: doc.device_id,
+              creation: doc.time,
+              modified: doc.time,
+              docstatus: 1
+            };
+
+            // Store locally in SecureStore
+            const storageKey = `test_admin_checkins`;
+            const existingCheckins = await SecureStore.getItemAsync(storageKey);
+            const checkins = existingCheckins ? JSON.parse(existingCheckins) : [];
+            checkins.push(mockCheckinRecord);
+            await SecureStore.setItemAsync(storageKey, JSON.stringify(checkins));
+
+            console.log('✅ Mock Employee Checkin created locally:', mockCheckinRecord);
+            console.log('📍 Location stored:', doc.device_id);
+
+            setLoading(false);
+            return mockCheckinRecord as T;
+          }
+
+          // For other doctypes, return mock success
+          const mockDoc = {
+            name: `MOCK-${doctype}-${Date.now()}`,
+            ...doc,
+            creation: new Date().toISOString(),
+            modified: new Date().toISOString(),
+            docstatus: 1
+          };
+
+          console.log('✅ Mock document created locally:', mockDoc);
+          setLoading(false);
+          return mockDoc as T;
+        }
+        // ========================================================================
+        // END MOCK CREATE
+        // ========================================================================
+
         if (!siteUrl) {
           throw new Error('Site URL not configured');
         }

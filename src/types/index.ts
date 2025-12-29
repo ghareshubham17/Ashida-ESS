@@ -26,6 +26,7 @@ export interface Employee {
   employee_name: string;
   user_id: string;
   status: string;
+  holiday_list?: string;
 }
 
 export interface EmployeeCheckin {
@@ -35,6 +36,8 @@ export interface EmployeeCheckin {
   log_type: 'IN' | 'OUT';
   creation: string;
   device_id?: string;
+  latitude?: number;
+  longitude?: number;
   is_missing_punch_entry?: number; // 1 if manually submitted as missing punch, 0 otherwise
 }
 

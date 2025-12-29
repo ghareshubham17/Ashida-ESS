@@ -2,14 +2,12 @@ import { AttendanceCalendar, Navbar } from '@/components';
 import { darkTheme, lightTheme } from '@/constants/TabTheme';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFrappeService } from '@/services/frappeService';
-import type { Employee, EmployeeCheckin, GreetingIcon, QuickAction } from '@/types';
+import type { Employee, QuickAction } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   I18nManager,
   RefreshControl,
@@ -30,11 +28,6 @@ export default function HomeScreen() {
 
   // State management
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-  const [todayCheckins, setTodayCheckins] = useState<EmployeeCheckin[]>([]);
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
-  const [checkInTime, setCheckInTime] = useState('');
-  const [checkInLoading, setCheckInLoading] = useState(false);
-  const [showCheckButton, setShowCheckButton] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
@@ -44,6 +37,13 @@ export default function HomeScreen() {
 
   // Quick Actions Configuration
   const quickActions: QuickAction[] = [
+    {
+      id: 'report',
+      title: 'Report',
+      icon: 'document-text-outline' as keyof typeof Ionicons.glyphMap,
+      color: '#00BCD4',
+      onPress: () => Alert.alert('Coming Soon', 'Reports feature will be available soon!')
+    },
     {
       id: 'gatepass',
       title: 'Gatepass',
@@ -80,197 +80,9 @@ export default function HomeScreen() {
       onPress: () => router.push('/(screens)/Holidays')
     }
   ];
-
-  // Utility functions
-  const formatTimestamp = (): string => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  };
-
-  const getTodayDateRange = useCallback(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-
-    return {
-      startTime: `${yyyy}-${mm}-${dd} 00:00:00`,
-      endTime: `${yyyy}-${mm}-${dd} 23:59:59`,
-    };
-  }, []);
-
-  const formatTime = (timeString: string): string => {
-    const time = new Date(timeString);
-    return time.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  // Get dynamic greeting based on time of day
-  const getGreeting = (): string => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      return 'Good Morning';
-    } else if (hour >= 12 && hour < 17) {
-      return 'Good Afternoon';
-    } else if (hour >= 17 && hour < 21) {
-      return 'Good Evening';
-    } else {
-      return 'Good Night';
-    }
-  };
-
-  // Get dynamic icon based on time of day
-  const getGreetingIcon = (): GreetingIcon => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      return { name: 'sunny', color: '#FF9800' };
-    } else if (hour >= 12 && hour < 17) {
-      return { name: 'sunny-outline', color: '#FFC107' };
-    } else if (hour >= 17 && hour < 21) {
-      return { name: 'partly-sunny', color: '#FF6F00' };
-    } else {
-      return { name: 'moon', color: '#7B1FA2' };
-    }
-  };
-
   // Core functions
-  const checkTodayCheckinStatus = useCallback(async (employeeName: string) => {
-    try {
-      const { startTime, endTime } = getTodayDateRange();
-
-      const checkins = await frappeService.getList<EmployeeCheckin>('Employee Checkin', {
-        fields: ['name', 'employee', 'time', 'log_type', 'creation'],
-        filters: {
-          employee: employeeName,
-          creation: ['between', [startTime, endTime]]
-        },
-        orderBy: 'creation asc'
-      });
-
-      console.log('Today checkins:', checkins);
-      setTodayCheckins(checkins || []);
-
-      if (checkins && checkins.length > 0) {
-        const inLog = checkins.find(entry => entry.log_type === 'IN');
-        const outLog = checkins.find(entry => entry.log_type === 'OUT');
-
-        if (inLog && outLog) {
-          setShowCheckButton(false);
-          setCheckInTime('');
-          setIsCheckedIn(false);
-        } else if (inLog) {
-          setShowCheckButton(true);
-
-          let checkinTime = inLog.time || inLog.creation;
-
-          if (!checkinTime) {
-            console.log('Time field missing in list response, fetching full document:', inLog.name);
-            try {
-              const fullDoc = await frappeService.getDoc<EmployeeCheckin>('Employee Checkin', inLog.name);
-              console.log('Full checkin document:', fullDoc);
-              checkinTime = fullDoc.time || fullDoc.creation;
-            } catch (fetchError) {
-              console.error('Error fetching full checkin document:', fetchError);
-            }
-          }
-
-          try {
-            console.log('Raw check-in time from DB:', checkinTime);
-
-            if (!checkinTime) {
-              console.warn('Check-in record has no time field');
-              setCheckInTime('--:--');
-              setIsCheckedIn(true);
-              return;
-            }
-
-            const timeStr = String(checkinTime);
-            let parsedDate: Date;
-
-            if (timeStr.includes(' ')) {
-              const [datePart, timePart] = timeStr.split(' ');
-
-              if (datePart.includes('-')) {
-                const parts = datePart.split('-');
-
-                if (parts[0].length === 4) {
-                  parsedDate = new Date(timeStr.replace(' ', 'T'));
-                } else {
-                  const [day, month, year] = parts;
-                  parsedDate = new Date(`${year}-${month}-${day}T${timePart}`);
-                }
-              } else {
-                parsedDate = new Date(timeStr);
-              }
-            } else {
-              parsedDate = new Date(timeStr);
-            }
-
-            if (!parsedDate || isNaN(parsedDate.getTime())) {
-              throw new Error('Invalid date');
-            }
-
-            const formattedTime = parsedDate.toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            });
-
-            console.log('Formatted check-in time:', formattedTime);
-            setCheckInTime(formattedTime);
-          } catch (error) {
-            console.error('Error parsing check-in time:', error, checkinTime);
-            try {
-              const timeStr = String(checkinTime);
-              const timePart = timeStr.split(' ')[1];
-              if (timePart) {
-                const [hours, minutes] = timePart.split(':');
-                const hour = parseInt(hours);
-                const minute = parseInt(minutes);
-                const ampm = hour >= 12 ? 'PM' : 'AM';
-                const displayHour = hour % 12 || 12;
-                const formattedTime = `${String(displayHour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${ampm}`;
-                console.log('Fallback formatted time:', formattedTime);
-                setCheckInTime(formattedTime);
-              } else {
-                setCheckInTime('--:--');
-              }
-            } catch (fallbackError) {
-              console.error('Fallback parsing also failed:', fallbackError);
-              setCheckInTime('--:--');
-            }
-          }
-
-          setIsCheckedIn(true);
-        } else {
-          setShowCheckButton(true);
-          setCheckInTime('');
-          setIsCheckedIn(false);
-        }
-      } else {
-        setShowCheckButton(true);
-        setCheckInTime('');
-        setIsCheckedIn(false);
-      }
-    } catch (error) {
-      console.error('Error checking today checkin status:', error);
-      throw error;
-    }
-  }, [getTodayDateRange, frappeService]);
-
-
   const checkEmployeeExist = useCallback(async () => {
     if (!user?.email) {
-      setShowCheckButton(false);
       setCurrentEmployee(null);
       return;
     }
@@ -288,158 +100,19 @@ export default function HomeScreen() {
         const employeeData = employees[0];
         console.log('Found employee:', employeeData);
         setCurrentEmployee(employeeData);
-        await checkTodayCheckinStatus(employeeData.name);
       } else {
         console.log('No employee found for user:', user.email);
-        setShowCheckButton(false);
         setCurrentEmployee(null);
-        setIsCheckedIn(false);
-        setCheckInTime('');
       }
     } catch (error) {
       console.error('Error checking employee:', error);
       if (!refreshing) {
         Alert.alert('Error', 'Failed to check employee status: ' + (error instanceof Error ? error.message : 'Unknown error'));
       }
-      setShowCheckButton(false);
       setCurrentEmployee(null);
     }
-  }, [user?.email, frappeService, checkTodayCheckinStatus, refreshing]);
+  }, [user?.email, frappeService, refreshing]);
 
-  const handleEmployeeCheckIn = useCallback(async () => {
-    if (!currentEmployee) {
-      Alert.alert('Error', 'Employee information not found. Please try refreshing.');
-      return;
-    }
-
-    setCheckInLoading(true);
-    try {
-      const logType: 'IN' | 'OUT' = isCheckedIn ? 'OUT' : 'IN';
-      const timestamp = formatTimestamp();
-
-      let locationString: string | null = null;
-      let hasLocation = false;
-
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-
-        if (status === 'granted') {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-
-          const latitude = location.coords.latitude;
-          const longitude = location.coords.longitude;
-
-          console.log(`Location captured for ${isCheckedIn ? 'check-out' : 'check-in'}:`, { lat: latitude, lng: longitude });
-
-          let locationParts = [`${latitude}, ${longitude}`];
-
-          try {
-            const [address] = await Location.reverseGeocodeAsync({
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            });
-
-            if (address) {
-              const addressComponents = [];
-
-              if (address.name) addressComponents.push(address.name);
-              if (address.street) {
-                const street = address.streetNumber
-                  ? `${address.streetNumber} ${address.street}`
-                  : address.street;
-                addressComponents.push(street);
-              }
-              if (address.district) addressComponents.push(address.district);
-              if (address.city) addressComponents.push(address.city);
-              if (address.postalCode) addressComponents.push(address.postalCode);
-              if (address.country) addressComponents.push(address.country);
-
-              const fullAddress = addressComponents.join(', ');
-              if (fullAddress) {
-                locationParts.push(fullAddress);
-              }
-
-              console.log('Address resolved:', fullAddress);
-            }
-          } catch (geocodeError) {
-            console.warn('Could not get address from coordinates:', geocodeError);
-          }
-
-          locationString = locationParts.join(' | ');
-          hasLocation = true;
-
-          console.log(`${isCheckedIn ? 'Check-out' : 'Check-in'} location:`, locationString);
-        } else {
-          console.warn('Location permission denied');
-          Alert.alert(
-            'Location Permission',
-            'Location permission is required for attendance tracking. ' +
-            (isCheckedIn ? 'Check-out' : 'Check-in') + ' will continue without location.',
-            [{ text: 'OK' }]
-          );
-        }
-      } catch (locationError) {
-        console.error('Error getting location:', locationError);
-      }
-
-      console.log('Creating checkin record:', {
-        employee: currentEmployee.name,
-        time: timestamp,
-        log_type: logType,
-        device_id: locationString
-      });
-
-      const result = await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
-        employee: currentEmployee.name,
-        time: timestamp,
-        log_type: logType,
-        device_id: locationString,
-      });
-
-      console.log('Checkin result:', result);
-
-      if (result) {
-        if (!isCheckedIn) {
-          setIsCheckedIn(true);
-          const time = new Date(timestamp);
-          const formattedTime = time.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          });
-          setCheckInTime(formattedTime);
-          console.log('Check-in time set to:', formattedTime);
-
-          let successMessage = `Successfully checked in at ${formatTime(result.creation || timestamp)}`;
-          if (hasLocation) {
-            successMessage += `\nLocation captured`;
-          }
-
-          Alert.alert('Success', successMessage);
-        } else {
-          setShowCheckButton(false);
-          setCheckInTime('');
-          setIsCheckedIn(false);
-
-          let successMessage = 'Successfully checked out. Have a great day!';
-          if (hasLocation) {
-            successMessage += '\nLocation captured';
-          }
-
-          Alert.alert('Success', successMessage);
-        }
-
-        await checkTodayCheckinStatus(currentEmployee.name);
-      }
-    } catch (error) {
-      console.error('Checkin error:', error);
-      Alert.alert('Error', `Failed to ${isCheckedIn ? 'check out' : 'check in'}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setCheckInLoading(false);
-    }
-  }, [currentEmployee, isCheckedIn, frappeService, checkTodayCheckinStatus]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -470,68 +143,6 @@ export default function HomeScreen() {
     };
   }, [user?.email, checkEmployeeExist]);
 
-  // Render functions
-  const renderCheckinStatus = () => {
-    if (!currentEmployee) {
-      return (
-        <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons name="alert-circle" size={32} color="#F44336" />
-          </View>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>Employee Not Found</Text>
-          <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
-            Please contact HR or try refreshing the page.
-          </Text>
-        </View>
-      );
-    }
-
-    if (!showCheckButton) {
-      return (
-        <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-          </View>
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>Work Day Complete!</Text>
-          <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
-            You've successfully completed your work day. Have a great evening!
-          </Text>
-        </View>
-      );
-    }
-
-    const greeting = getGreeting();
-    const greetingIcon = getGreetingIcon();
-
-    return (
-      <View style={[styles.statusContainer, { backgroundColor: theme.colors.background }]}>
-        {isCheckedIn ? (
-          <>
-            <View style={styles.statusIconContainer}>
-              <Ionicons name="checkmark-done-circle" size={32} color="#4CAF50" />
-            </View>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>Already Checked In!</Text>
-            <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
-              You started your day at <Text style={styles.timeHighlight}>{checkInTime}</Text>
-            </Text>
-            <Text style={[styles.statusReminder, { color: theme.colors.textSecondary }]}>
-              Don't forget to check out when you're done!
-            </Text>
-          </>
-        ) : (
-          <>
-            <View style={styles.statusIconContainer}>
-              <Ionicons name={greetingIcon.name as any} size={32} color={greetingIcon.color} />
-            </View>
-            <Text style={[styles.statusText, { color: theme.colors.text }]}>{greeting}!</Text>
-            <Text style={[styles.statusSubtext, { color: theme.colors.textSecondary }]}>
-              You haven't checked in today. Ready to start your day?
-            </Text>
-          </>
-        )}
-      </View>
-    );
-  };
 
   const renderQuickAction = (action: QuickAction) => (
     <TouchableOpacity
@@ -588,55 +199,6 @@ export default function HomeScreen() {
               </Text>
             </View>
           </LinearGradient>
-        </View>
-
-        {/* Check-in/Check-out Card */}
-        <View style={[styles.checkinCard, { backgroundColor: theme.colors.card }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Attendance</Text>
-            <Ionicons name="time" size={24} color={theme.colors.primary} />
-          </View>
-
-          {renderCheckinStatus()}
-
-          {/* Check-in/Check-out Button */}
-          {showCheckButton && (
-            <TouchableOpacity
-              onPress={handleEmployeeCheckIn}
-              disabled={checkInLoading}
-              style={[
-                styles.checkinButton,
-                checkInLoading && styles.checkinButtonDisabled
-              ]}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={isCheckedIn ? "Check out button" : "Check in button"}
-              accessibilityState={{ disabled: checkInLoading }}
-            >
-              <LinearGradient
-                colors={isCheckedIn ? ['#F44336', '#D32F2F'] : ['#4CAF50', '#388E3C']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.checkinButtonGradient}
-              >
-                {checkInLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={isCheckedIn ? "log-out" : "log-in"}
-                      size={20}
-                      color="#fff"
-                      style={styles.checkinIcon}
-                    />
-                    <Text style={styles.checkinButtonText}>
-                      {isCheckedIn ? "Check-Out" : "Check-In"}
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Calendar Button */}
@@ -738,17 +300,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
   },
-  checkinCard: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -758,56 +309,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  statusContainer: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  statusIconContainer: {
-    marginBottom: 12,
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  statusSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    lineHeight: 20,
-  },
-  timeHighlight: {
-    fontWeight: 'bold',
-    color: '#2196F3',
-  },
-  statusReminder: {
-    fontSize: 12,
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  checkinButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  checkinButtonGradient: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  checkinButtonDisabled: {
-    opacity: 0.6,
-  },
-  checkinIcon: {
-    marginRight: 8,
-  },
-  checkinButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
   },
   calendarCard: {
     marginHorizontal: 20,

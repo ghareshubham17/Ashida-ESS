@@ -4,6 +4,7 @@ import { useFrappeService } from '@/services/frappeService';
 import type { Employee, EmployeeCheckin } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -28,15 +29,17 @@ const CELL_WIDTH = (width - 40) / 7;
 // ============================================================================
 
 const STATUS_COLORS = {
-  present: '#4CAF50',      // Green
+  present: '#81C784',      // Light Green
   absent: '#F44336',       // Red
-  on_leave: '#9C27B0',     // Purple
-  half_day: '#00BCD4',     // Cyan
+  on_leave: '#F9A825',     // Dark Yellow
+  half_day: '#F9A825',     // Dark Yellow (same as leave)
   work_from_home: '#2196F3', // Blue
-  incomplete: '#FFC107',   // Amber/Yellow
+  incomplete: '#FF6B6B',   // Light Red (better visibility for incomplete status)
   default: '#E0E0E0',      // Light gray
   wfh: '#2196F3',          // Blue
-  od: '#FF9800',           // Orange
+  od: '#9C27B0',           // Purple
+  weekly_off: '#607D8B',   // Blue Gray - for Saturday/Sunday
+  holiday: '#1B5E20',      // Darker Green - for other holidays
 } as const;
 
 const STATUS_TEXT = {
@@ -86,6 +89,9 @@ interface DayData {
   attendanceStatus: string | null;
   isWFH?: boolean;
   isOD?: boolean;
+  isHoliday?: boolean;
+  holidayDescription?: string;
+  isWeeklyOff?: boolean;
 }
 
 interface ProcessedData {
@@ -125,6 +131,17 @@ interface Attendance {
   status: string;
 }
 
+interface HolidayList {
+  name: string;
+  holidays: Holiday[];
+}
+
+interface Holiday {
+  holiday_date: string;
+  description: string;
+  weekly_off?: number; // 1 if weekly off, 0 otherwise
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -152,6 +169,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const [odDates, setOdDates] = useState<Set<string>>(new Set());
   const [wfhDateCreation, setWfhDateCreation] = useState<Map<string, string>>(new Map());
   const [odDateCreation, setOdDateCreation] = useState<Map<string, string>>(new Map());
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+  const [holidayDescriptions, setHolidayDescriptions] = useState<Map<string, string>>(new Map());
+  const [weeklyOffDates, setWeeklyOffDates] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
 
   // --------------------------------------------------------------------------
@@ -169,6 +189,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedLogType, setAllowedLogType] = useState<'IN' | 'OUT' | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isTodayWFHorOD, setIsTodayWFHorOD] = useState(false);
 
   // --------------------------------------------------------------------------
   // Utility Functions
@@ -207,7 +230,10 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     records: EmployeeCheckin[],
     attendanceRecords: Attendance[] = [],
     wfhDateSet: Set<string> = new Set(),
-    odDateSet: Set<string> = new Set()
+    odDateSet: Set<string> = new Set(),
+    holidayDateSet: Set<string> = new Set(),
+    holidayDescMap: Map<string, string> = new Map(),
+    weeklyOffDateSet: Set<string> = new Set()
   ): ProcessedData => {
     const dailyData: ProcessedData = {};
 
@@ -226,6 +252,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           attendanceStatus: null,
           isWFH: wfhDateSet.has(dateKey),
           isOD: odDateSet.has(dateKey),
+          isHoliday: holidayDateSet.has(dateKey),
+          holidayDescription: holidayDescMap.get(dateKey),
+          isWeeklyOff: weeklyOffDateSet.has(dateKey),
         };
       }
 
@@ -271,6 +300,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
           attendanceStatus: null,
           isWFH: wfhDateSet.has(dateKey),
           isOD: odDateSet.has(dateKey),
+          isHoliday: holidayDateSet.has(dateKey),
+          holidayDescription: holidayDescMap.get(dateKey),
+          isWeeklyOff: weeklyOffDateSet.has(dateKey),
         };
       }
 
@@ -304,11 +336,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       // Priority 2: If no official attendance status, determine from check-ins/outs
       if (hasCheckIn || hasCheckOut) {
         if (hasCheckIn && hasCheckOut) {
-          if (dayData.checkOuts.length >= dayData.checkIns.length) {
-            dayData.status = 'present';
-          } else {
-            dayData.status = 'incomplete';
-          }
+          // If both check-in and check-out exist, mark as present
+          // (even if there are multiple check-ins, as long as there's at least one check-out)
+          dayData.status = 'present';
         } else if (hasCheckIn && !hasCheckOut) {
           // Has IN but no OUT → Incomplete
           dayData.status = 'incomplete';
@@ -340,6 +370,17 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
       const { startTime, endTime, startDate, endDate } = getMonthDateRange(currentMonth);
       console.log('Date range:', { startTime, endTime });
+
+      // First, get employee's holiday_list if not already available
+      let employeeHolidayList = currentEmployee.holiday_list;
+
+      if (!employeeHolidayList) {
+        console.log('Fetching employee holiday_list...');
+        const employeeDoc = await frappeService.getDoc<Employee>('Employee', currentEmployee.name);
+        employeeHolidayList = employeeDoc?.holiday_list;
+      }
+
+      console.log('Employee holiday_list:', employeeHolidayList);
 
       // Fetch all data in parallel
       const [records, attendanceRecords, wfhRecords, odRecords] = await Promise.all([
@@ -391,6 +432,36 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       console.log('Fetched WFH records:', wfhRecords?.length || 0);
       console.log('Fetched OD records:', odRecords?.length || 0);
 
+      // Fetch holidays from employee's Holiday List
+      let holidayRecords: Holiday[] = [];
+
+      if (employeeHolidayList) {
+        try {
+          console.log('Fetching Holiday List:', employeeHolidayList);
+          const holidayListDoc = await frappeService.getDoc<HolidayList>('Holiday List', employeeHolidayList);
+
+          if (holidayListDoc && holidayListDoc.holidays) {
+            // Filter holidays for current month
+            const startDateObj = new Date(startDate);
+            const endDateObj = new Date(endDate);
+
+            holidayRecords = holidayListDoc.holidays.filter(holiday => {
+              const holidayDateObj = new Date(holiday.holiday_date);
+              return holidayDateObj >= startDateObj && holidayDateObj <= endDateObj;
+            });
+
+            console.log('Fetched holiday records from Holiday List:', holidayRecords.length);
+          } else {
+            console.log('No holidays found in Holiday List');
+          }
+        } catch (error) {
+          console.error('Error fetching Holiday List:', error);
+          // Continue without holidays if fetch fails
+        }
+      } else {
+        console.log('No holiday_list found for employee');
+      }
+
       // Process WFH dates with creation timestamps
       const wfhDateSet = new Set<string>();
       const wfhCreationMap = new Map<string, string>();
@@ -433,8 +504,36 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       setOdDates(odDateSet);
       setOdDateCreation(odCreationMap);
 
+      // Process Holiday dates
+      const holidayDateSet = new Set<string>();
+      const holidayDescMap = new Map<string, string>();
+      const weeklyOffDateSet = new Set<string>();
+
+      (holidayRecords || []).forEach(holiday => {
+        const dateKey = holiday.holiday_date; // Already in YYYY-MM-DD format
+
+        if (holiday.weekly_off === 1) {
+          weeklyOffDateSet.add(dateKey);
+        } else {
+          holidayDateSet.add(dateKey);
+        }
+        holidayDescMap.set(dateKey, holiday.description);
+      });
+
+      setHolidayDates(holidayDateSet);
+      setHolidayDescriptions(holidayDescMap);
+      setWeeklyOffDates(weeklyOffDateSet);
+
       setMonthlyRecords(records || []);
-      const processed = processAttendanceData(records || [], attendanceRecords || [], wfhDateSet, odDateSet);
+      const processed = processAttendanceData(
+        records || [],
+        attendanceRecords || [],
+        wfhDateSet,
+        odDateSet,
+        holidayDateSet,
+        holidayDescMap,
+        weeklyOffDateSet
+      );
       setProcessedData(processed);
       console.log('Processed data:', processed);
 
@@ -499,6 +598,116 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     const today = new Date();
     const todayKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
     return dateKey === todayKey;
+  };
+
+  // Get current location with improved accuracy and speed
+  const getCurrentLocation = async (): Promise<{ latitude: number; longitude: number; accuracy: number } | null> => {
+    try {
+      setIsGettingLocation(true);
+
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to check-in/out.');
+        return null;
+      }
+
+      console.log('Getting location...');
+
+      // First, try to get last known location (instant)
+      const lastKnown = await Location.getLastKnownPositionAsync();
+
+      if (lastKnown) {
+        const now = Date.now();
+        const locationAge = now - lastKnown.timestamp;
+
+        // If last known location is less than 30 seconds old and accurate, use it
+        if (locationAge < 30000 && lastKnown.coords.accuracy && lastKnown.coords.accuracy < 100) {
+          console.log('Using recent cached location:', {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            accuracy: lastKnown.coords.accuracy,
+            age: Math.round(locationAge / 1000) + 's'
+          });
+
+          return {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            accuracy: lastKnown.coords.accuracy || 0,
+          };
+        }
+      }
+
+      // Get fresh location
+      console.log('Fetching fresh location...');
+
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        console.log('Location obtained:', {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          accuracy: location.coords.accuracy,
+        });
+
+        return {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          accuracy: location.coords.accuracy || 0,
+        };
+      } catch (freshLocationError: any) {
+        console.error('Fresh location fetch failed:', freshLocationError);
+
+        // Fallback: try with balanced accuracy if high accuracy fails
+        console.log('Trying balanced accuracy as fallback...');
+        try {
+          const fallbackLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+
+          console.log('Fallback location obtained:', {
+            latitude: fallbackLocation.coords.latitude,
+            longitude: fallbackLocation.coords.longitude,
+            accuracy: fallbackLocation.coords.accuracy,
+          });
+
+          return {
+            latitude: fallbackLocation.coords.latitude,
+            longitude: fallbackLocation.coords.longitude,
+            accuracy: fallbackLocation.coords.accuracy || 0,
+          };
+        } catch (fallbackError: any) {
+          // Last resort: use last known location if available
+          if (lastKnown) {
+            console.log('Using last known location as final fallback');
+            return {
+              latitude: lastKnown.coords.latitude,
+              longitude: lastKnown.coords.longitude,
+              accuracy: lastKnown.coords.accuracy || 0,
+            };
+          }
+          throw fallbackError;
+        }
+      }
+    } catch (error: any) {
+      console.error('Error getting location:', error);
+
+      const errorMessage = error?.message || 'Unknown error';
+      const isServicesDisabled = errorMessage.includes('location services') || errorMessage.includes('unavailable');
+
+      Alert.alert(
+        'Location Error',
+        isServicesDisabled
+          ? 'Location services are disabled. Please enable GPS/Location services in your phone settings and try again.'
+          : 'Failed to get location. Please ensure GPS is enabled and try again.'
+      );
+      return null;
+    } finally {
+      setIsGettingLocation(false);
+    }
   };
 
   // Check if a specific day already has missing punch entries
@@ -574,6 +783,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   // Effects
   // --------------------------------------------------------------------------
 
+  // Fetch data when calendar opens or month changes
   useEffect(() => {
     if (visible && currentEmployee) {
       console.log('Calendar opened, fetching records...');
@@ -693,10 +903,89 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       setAllowedLogType('IN');
     }
 
+    // Check if this is today with WFH or OD
+    const hasWFH = wfhDates.has(dateKey);
+    const hasOD = odDates.has(dateKey);
+    setIsTodayWFHorOD(isCurrentDay && (hasWFH || hasOD));
+
     // Set default time to current time
     setEntryTime(new Date());
 
     setShowDialog(true);
+  };
+
+  // Handle quick check-in/check-out for WFH/OD on current date
+  const handleQuickCheckInOut = async () => {
+    if (!selectedDate || !currentEmployee || !allowedLogType) {
+      Alert.alert('Error', 'Invalid request');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Get current location
+      const location = await getCurrentLocation();
+
+      if (!location) {
+        // Location permission denied or error
+        setIsSubmitting(false);
+        return;
+      }
+
+      setCurrentLocation({ latitude: location.latitude, longitude: location.longitude });
+
+      // Use current time
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const time24 = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      const timestamp = `${selectedDate} ${time24}`;
+
+      console.log(`Creating ${allowedLogType} record with location:`, {
+        employee: currentEmployee.name,
+        time: timestamp,
+        log_type: allowedLogType,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        is_missing_punch_entry: 0
+      });
+
+      const result = await frappeService.createDoc<EmployeeCheckin>('Employee Checkin', {
+        employee: currentEmployee.name,
+        time: timestamp,
+        log_type: allowedLogType,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        is_missing_punch_entry: 0 // Current day WFH/OD is not a missing punch
+      });
+
+      console.log(`${allowedLogType} record created:`, result);
+
+      setShowDialog(false);
+      setEntryTime(new Date());
+      setShowTimePicker(false);
+      setSelectedDate(null);
+      setSelectedDayData(null);
+      setAllowedLogType(null);
+      setCurrentLocation(null);
+      setIsTodayWFHorOD(false);
+
+      // Show simple success message
+      Alert.alert(
+        'Success',
+        `${allowedLogType === 'IN' ? 'Checked in' : 'Checked out'} successfully!`
+      );
+
+      await fetchMonthlyRecords();
+
+    } catch (error) {
+      console.error(`Error creating ${allowedLogType} record:`, error);
+      Alert.alert('Error', `Failed to ${allowedLogType === 'IN' ? 'check-in' : 'check-out'}: ` + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle check-in/check-out entry submission
@@ -836,8 +1125,13 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     const isWFH = wfhDates.has(dateKey);
     const isOD = odDates.has(dateKey);
 
+    // Check if holiday or weekly off
+    const isHoliday = holidayDates.has(dateKey);
+    const isWeeklyOff = weeklyOffDates.has(dateKey);
+    const holidayDesc = holidayDescriptions.get(dateKey);
+
     // Determine background color based on data availability
-    // Priority: Attendance status > WFH/OD applications > Today highlight
+    // Priority: Attendance status > Holiday/Weekly Off > WFH/OD applications > Today highlight
     let backgroundColor = theme.colors.card;
 
     // Check if there's attendance/checkin data
@@ -847,8 +1141,15 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     if (data && (hasAttendanceRecord || data.status === 'incomplete')) {
       // Use consistent opacity for all attendance records (same color for same status, like a chart)
       backgroundColor = getStatusColor(data.status) + OPACITY.FULL;
+    } else if (isHoliday || isWeeklyOff) {
+      // Priority 2: Holiday or Weekly Off (no attendance record)
+      if (isWeeklyOff) {
+        backgroundColor = STATUS_COLORS.weekly_off + OPACITY.LIGHT;
+      } else {
+        backgroundColor = STATUS_COLORS.holiday + OPACITY.MEDIUM;
+      }
     } else if (isWFH || isOD) {
-      // Priority 2: If no attendance but WFH/OD exists, show WFH/OD color
+      // Priority 3: If no attendance but WFH/OD exists, show WFH/OD color
       // Determine which application to show (if both exist, show the later one)
       let showWFHColor = false;
 
@@ -866,7 +1167,7 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         backgroundColor = STATUS_COLORS.od + OPACITY.LIGHT;
       }
     } else if (isToday) {
-      // Priority 3: Today highlight
+      // Priority 4: Today highlight
       backgroundColor = theme.colors.primary + OPACITY.LIGHT;
     }
 
@@ -879,14 +1180,29 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         ]}
         onPress={() => handleDayClick(day, data)}
         accessibilityRole="button"
-        accessibilityLabel={`Day ${day}${data ? `, Status: ${data.status}` : ''}${isWFH ? ', Work From Home' : ''}${isOD ? ', On Duty' : ''}`}
+        accessibilityLabel={`Day ${day}${data ? `, Status: ${data.status}` : ''}${isHoliday ? `, Holiday: ${holidayDesc}` : ''}${isWeeklyOff ? `, Weekly Off: ${holidayDesc}` : ''}${isWFH ? ', Work From Home' : ''}${isOD ? ', On Duty' : ''}`}
       >
         <Text style={[styles.dayNumber, { color: theme.colors.text }, isToday && { color: theme.colors.primary, fontWeight: 'bold' }]}>
           {day}
         </Text>
-        {/* Status indicator badge - Priority: Most recent application (WFH/OD by creation time) > Attendance Status */}
+        {/* Status indicator badge - Priority: Holiday/Weekly Off > WFH/OD > Attendance Status */}
         {(() => {
-          // If both WFH and OD exist, show the one that was created later
+          // Priority 1: Show holiday or weekly off badge
+          if (isHoliday) {
+            return (
+              <View style={[styles.statusIndicator, { backgroundColor: STATUS_COLORS.holiday }]}>
+                <Text style={styles.statusText}>H</Text>
+              </View>
+            );
+          } else if (isWeeklyOff) {
+            return (
+              <View style={[styles.statusIndicator, { backgroundColor: STATUS_COLORS.weekly_off }]}>
+                <Text style={styles.statusText}>H</Text>
+              </View>
+            );
+          }
+
+          // Priority 2: If both WFH and OD exist, show the one that was created later
           if (isWFH && isOD) {
             const wfhCreation = wfhDateCreation.get(dateKey);
             const odCreation = odDateCreation.get(dateKey);
@@ -919,13 +1235,17 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                 <Text style={styles.statusText}>O</Text>
               </View>
             );
-          } else if (data) {
+          }
+
+          // Priority 3: Show attendance status
+          if (data) {
             return (
               <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(data.status) }]}>
                 <Text style={styles.statusText}>{getStatusText(data.status)}</Text>
               </View>
             );
           }
+
           return null;
         })()}
       </TouchableOpacity>
@@ -1040,6 +1360,14 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                 <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.od }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>OD</Text>
               </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.holiday }]} />
+                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Holiday</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: STATUS_COLORS.weekly_off }]} />
+                <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Weekly Off</Text>
+              </View>
             </View>
           </View>
 
@@ -1098,57 +1426,84 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
                 {selectedDayData && (selectedDayData.checkIns.length > 0 || selectedDayData.checkOuts.length > 0) && (
                   <View style={[styles.existingRecords, { backgroundColor: theme.colors.background }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Existing Records:</Text>
-                    {selectedDayData.checkIns.map((checkIn, index) => (
-                      <Text key={`in-${index}`} style={[styles.recordText, { color: theme.colors.textSecondary }]}>
-                        Check-in: {formatTime(checkIn)}
-                      </Text>
-                    ))}
-                    {selectedDayData.checkOuts.map((checkOut, index) => (
-                      <Text key={`out-${index}`} style={[styles.recordText, { color: theme.colors.textSecondary }]}>
-                        Check-out: {formatTime(checkOut)}
-                      </Text>
-                    ))}
+                    {selectedDayData.checkIns.length > 0 && (
+                      <View style={styles.recordRow}>
+                        <Text style={[styles.recordLabel, { color: theme.colors.text }]}>Check-in Time:</Text>
+                        <Text style={[styles.recordValue, { color: theme.colors.textSecondary }]}>
+                          {formatTime(selectedDayData.checkIns[0])}
+                        </Text>
+                      </View>
+                    )}
+                    {selectedDayData.checkOuts.length > 0 && (
+                      <View style={styles.recordRow}>
+                        <Text style={[styles.recordLabel, { color: theme.colors.text }]}>Check-out Time:</Text>
+                        <Text style={[styles.recordValue, { color: theme.colors.textSecondary }]}>
+                          {formatTime(selectedDayData.checkOuts[0])}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
                 {allowedLogType && (
                   <View style={styles.inputSection}>
-                    <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                      {allowedLogType === 'IN' ? 'Check-in' : 'Check-out'} Time:
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.timePickerButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
-                      onPress={() => setShowTimePicker(true)}
-                    >
-                      <Ionicons name="time-outline" size={20} color={theme.colors.text} />
-                      <Text style={[styles.timePickerText, { color: theme.colors.text }]}>
-                        {entryTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                      </Text>
-                    </TouchableOpacity>
-                    {showTimePicker && (
-                      <DateTimePicker
-                        value={entryTime}
-                        mode="time"
-                        is24Hour={false}
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(event, selectedDate) => {
-                          if (Platform.OS === 'android') {
-                            setShowTimePicker(false);
-                          }
-                          if (selectedDate) {
-                            setEntryTime(selectedDate);
-                          }
-                        }}
-                      />
-                    )}
-                    {Platform.OS === 'ios' && showTimePicker && (
-                      <TouchableOpacity
-                        style={[styles.doneButton, { backgroundColor: theme.colors.primary }]}
-                        onPress={() => setShowTimePicker(false)}
-                      >
-                        <Text style={styles.doneButtonText}>Done</Text>
-                      </TouchableOpacity>
+                    {isTodayWFHorOD ? (
+                      // For today with WFH/OD - Show simple message
+                      <View style={styles.quickCheckInSection}>
+                        <View style={styles.todayCheckInHeader}>
+                          <Ionicons
+                            name={allowedLogType === 'IN' ? 'log-in' : 'log-out'}
+                            size={24}
+                            color={theme.colors.primary}
+                          />
+                          <Text style={[styles.todayCheckInTitle, { color: theme.colors.text }]}>
+                            {allowedLogType === 'IN' ? 'Check-in for Today' : 'Check-out for Today'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.todayCheckInSubtitle, { color: theme.colors.textSecondary }]}>
+                          {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </Text>
+                      </View>
+                    ) : (
+                      // For past days - Show time picker
+                      <>
+                        <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+                          {allowedLogType === 'IN' ? 'Check-in' : 'Check-out'} Time:
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.timePickerButton, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                          onPress={() => setShowTimePicker(true)}
+                        >
+                          <Ionicons name="time-outline" size={20} color={theme.colors.text} />
+                          <Text style={[styles.timePickerText, { color: theme.colors.text }]}>
+                            {entryTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </Text>
+                        </TouchableOpacity>
+                        {showTimePicker && (
+                          <DateTimePicker
+                            value={entryTime}
+                            mode="time"
+                            is24Hour={false}
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event, selectedDate) => {
+                              if (Platform.OS === 'android') {
+                                setShowTimePicker(false);
+                              }
+                              if (selectedDate) {
+                                setEntryTime(selectedDate);
+                              }
+                            }}
+                          />
+                        )}
+                        {Platform.OS === 'ios' && showTimePicker && (
+                          <TouchableOpacity
+                            style={[styles.doneButton, { backgroundColor: theme.colors.primary }]}
+                            onPress={() => setShowTimePicker(false)}
+                          >
+                            <Text style={styles.doneButtonText}>Done</Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
                     )}
                   </View>
                 )}
@@ -1168,15 +1523,27 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
                 {allowedLogType && (
                   <TouchableOpacity
-                    style={[styles.submitButton, { backgroundColor: theme.colors.primary }, isSubmitting && styles.submitButtonDisabled]}
-                    onPress={handleSubmitEntry}
-                    disabled={isSubmitting}
+                    style={[styles.submitButton, { backgroundColor: theme.colors.primary }, (isSubmitting || isGettingLocation) && styles.submitButtonDisabled]}
+                    onPress={isTodayWFHorOD ? handleQuickCheckInOut : handleSubmitEntry}
+                    disabled={isSubmitting || isGettingLocation}
                     accessibilityRole="button"
-                    accessibilityState={{ disabled: isSubmitting }}
+                    accessibilityState={{ disabled: isSubmitting || isGettingLocation }}
                   >
-                    <Text style={styles.submitButtonText}>
-                      {isSubmitting ? 'Adding...' : `Add ${allowedLogType === 'IN' ? 'Check-in' : 'Check-out'}`}
-                    </Text>
+                    {isGettingLocation ? (
+                      <View style={styles.buttonContentRow}>
+                        <Ionicons name="location-outline" size={18} color="#fff" />
+                        <Text style={styles.submitButtonText}>Getting location...</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.buttonContentRow}>
+                        {isTodayWFHorOD && <Ionicons name={allowedLogType === 'IN' ? 'log-in-outline' : 'log-out-outline'} size={18} color="#fff" />}
+                        <Text style={styles.submitButtonText}>
+                          {isSubmitting
+                            ? (isTodayWFHorOD ? `${allowedLogType === 'IN' ? 'Checking in' : 'Checking out'}...` : 'Adding...')
+                            : (isTodayWFHorOD ? `${allowedLogType === 'IN' ? 'Check In Now' : 'Check Out Now'}` : `Add ${allowedLogType === 'IN' ? 'Check-in' : 'Check-out'}`)}
+                        </Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 )}
               </View>
@@ -1385,15 +1752,20 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 20,
+    gap: 8,
   },
-  sectionTitle: {
+  recordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  recordLabel: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8,
   },
-  recordText: {
+  recordValue: {
     fontSize: 14,
-    marginBottom: 4,
+    fontWeight: '500',
   },
   inputSection: {
     marginBottom: 20,
@@ -1454,6 +1826,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  quickCheckInSection: {
+    gap: 8,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  todayCheckInHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  todayCheckInTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  todayCheckInSubtitle: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  buttonContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
 

@@ -24,7 +24,8 @@
       "Bash(move \"app\\(screens)\\LeaveApplicationScreen.tsx\" \"app\\(screens)\\LeaveApplication.tsx\")",
       "Bash(cat:*)",
       "Bash(eas:*)",
-      "Bash(eas build:list:*)"
+      "Bash(eas build:list:*)",
+      "Bash(npx react-native start:*)"
     ],
     "deny": [],
     "ask": []

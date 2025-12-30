@@ -61,6 +61,8 @@ export default function ODApplicationList() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
+  const [hasReportingEmployees, setHasReportingEmployees] = useState<boolean>(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState<number>(0);
 
   const PAGE_SIZE = 20;
 
@@ -187,6 +189,56 @@ export default function ODApplicationList() {
   useEffect(() => {
     fetchODApplications(0, false);
   }, [selectedStatus, sortOrder]);
+
+  // Fetch pending approval count for employees reporting to logged-in user
+  useEffect(() => {
+    const fetchPendingApprovalCount = async () => {
+      try {
+        if (!user?.employee_id) {
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        // Step 1: Fetch all employees who report to the logged-in user
+        const reportingEmployees = await frappeService.getList<any>('Employee', {
+          fields: ['name'],
+          filters: [['reports_to', '=', user.employee_id]],
+          limitPageLength: 999999 // Get all employees
+        });
+
+        if (reportingEmployees.length === 0) {
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        // Found reporting employees, so show the notification button
+        setHasReportingEmployees(true);
+
+        // Extract employee IDs
+        const employeeIds = reportingEmployees.map((emp: any) => emp.name);
+
+        // Step 2: Fetch pending OD applications for those employees
+        const pendingApplications = await frappeService.getList<any>('OD Application', {
+          fields: ['name'],
+          filters: [
+            ['employee', 'in', employeeIds],
+            ['approval_status', 'in', ['Pending', 'Open']]
+          ],
+          limitPageLength: 999999 // Get all pending applications
+        });
+
+        setPendingApprovalCount(pendingApplications.length);
+      } catch (err) {
+        console.error('Error fetching pending OD approval count:', err);
+        setPendingApprovalCount(0);
+        setHasReportingEmployees(false);
+      }
+    };
+
+    fetchPendingApprovalCount();
+  }, [frappeService, user?.employee_id]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {
@@ -333,6 +385,19 @@ export default function ODApplicationList() {
               My Outdoor Applications
             </Text>
           </View>
+          {hasReportingEmployees && (
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/(screens)/odApprovalApplicationList')}
+            >
+              <Ionicons name="notifications-outline" size={24} color={theme.colors.text} />
+              {pendingApprovalCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{pendingApprovalCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Add OD Application Button */}
@@ -498,6 +563,27 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
+    fontWeight: '700',
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 4,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '700',
   },
   addButtonContainer: {

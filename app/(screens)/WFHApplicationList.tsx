@@ -55,7 +55,7 @@ export default function WFHApplicationList() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
-  const [reportsTo, setReportsTo] = useState<string | null>(null);
+  const [hasReportingEmployees, setHasReportingEmployees] = useState<boolean>(false);
   const [pendingApprovalCount, setPendingApprovalCount] = useState<number>(0);
 
   const PAGE_SIZE = 20;
@@ -172,31 +172,13 @@ export default function WFHApplicationList() {
     fetchWFHApplications(0, false);
   }, [selectedStatus, sortOrder]);
 
-  // Fetch employee's reports_to field on mount
-  useEffect(() => {
-    const fetchEmployeeData = async () => {
-      try {
-        if (!user?.employee_id) return;
-
-        const employeeData = await frappeService.getDoc('Employee', user.employee_id);
-
-        setReportsTo(employeeData.reports_to || null);
-      } catch (err) {
-        console.error('Error fetching employee data:', err);
-        setReportsTo(null);
-      }
-    };
-
-    fetchEmployeeData();
-  }, [frappeService, user?.employee_id]);
-
   // Fetch pending approval count for employees reporting to logged-in user
   useEffect(() => {
     const fetchPendingApprovalCount = async () => {
       try {
-        if (!user?.employee_id || reportsTo !== null) {
-          // Only fetch if user has no reporting manager (i.e., is a manager)
+        if (!user?.employee_id) {
           setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
           return;
         }
 
@@ -209,8 +191,12 @@ export default function WFHApplicationList() {
 
         if (reportingEmployees.length === 0) {
           setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
           return;
         }
+
+        // Found reporting employees, so show the notification button
+        setHasReportingEmployees(true);
 
         // Extract employee IDs
         const employeeIds = reportingEmployees.map((emp: any) => emp.name);
@@ -229,11 +215,12 @@ export default function WFHApplicationList() {
       } catch (err) {
         console.error('Error fetching pending approval count:', err);
         setPendingApprovalCount(0);
+        setHasReportingEmployees(false);
       }
     };
 
     fetchPendingApprovalCount();
-  }, [frappeService, user?.employee_id, reportsTo]);
+  }, [frappeService, user?.employee_id]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {
@@ -346,7 +333,7 @@ export default function WFHApplicationList() {
               My WFH Applications
             </Text>
           </View>
-          {!reportsTo && (
+          {hasReportingEmployees && (
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={() => router.push('/(screens)/wfhApprovalApplicationList')}

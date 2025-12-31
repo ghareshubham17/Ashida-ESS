@@ -21,26 +21,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Type Definitions
-type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Open';
+type LeaveStatus = 'Open' | 'Approved' | 'Rejected' | 'Cancelled';
 type SortBy = 'date' | 'employee';
 
-interface ODApplication {
+interface LeaveApplication {
   id: string;
   employee: string;
   employee_name: string;
-  od_start_date: string;
-  od_end_date: string;
-  od_type: string;
-  od_type_description: string;
-  per_day_rate: number;
-  location: string;
-  approval_status: ApprovalStatus;
-  date_of_application: string;
-  approved_by?: string;
-  date_of_approval?: string;
-  rejected_by?: string;
-  date_of_rejection?: string;
-  reason_for_rejection?: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  custom_from_date_leave_value: string;
+  custom_till_date_leave_value: string;
+  description: string;
+  status: LeaveStatus;
+  posting_date: string;
+  leave_approver?: string;
 }
 
 interface Employee {
@@ -48,7 +44,7 @@ interface Employee {
   name: string;
 }
 
-export default function ODApprovalApplicationList() {
+export default function LeaveApprovalApplicationList() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -66,7 +62,7 @@ export default function ODApprovalApplicationList() {
   const [displayCount, setDisplayCount] = useState(20);
 
   // Applications data from API
-  const [allApplications, setAllApplications] = useState<ODApplication[]>([]);
+  const [allApplications, setAllApplications] = useState<LeaveApplication[]>([]);
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
 
@@ -77,7 +73,7 @@ export default function ODApprovalApplicationList() {
   // Rejection modal state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [applicationToReject, setApplicationToReject] = useState<ODApplication | null>(null);
+  const [applicationToReject, setApplicationToReject] = useState<LeaveApplication | null>(null);
 
   // Fetch employees with server-side search - only team members
   useEffect(() => {
@@ -144,14 +140,14 @@ export default function ODApprovalApplicationList() {
     return () => clearTimeout(timeoutId);
   }, [employeeSearchQuery, showEmployeeDropdown, frappeService, user?.employee_id]);
 
-  // Fetch all OD applications for team members (role-based access)
+  // Fetch all Leave applications for team members (role-based access)
   const fetchApplications = useCallback(async () => {
     try {
       setIsLoadingApplications(true);
       setApplicationsError(null);
-      console.log('Fetching OD applications for approval...');
+      console.log('Fetching Leave applications for approval...');
 
-      // Step 1: Check if logged-in user has "OD Approver" role
+      // Step 1: Check if logged-in user has "Leave Approver" role
       const loggedinEmp = await frappeService.getList<any>('Employee', {
         fields: ['user_id', 'name'],
         filters: [
@@ -167,11 +163,11 @@ export default function ODApprovalApplicationList() {
       const userData = await frappeService.getDoc<any>('User', loggedinEmp[0].user_id);
 
       const hasApproverRole = userData?.roles?.some(
-        (roleObj: any) => roleObj.role === 'OD Approver'
+        (roleObj: any) => roleObj.role === 'Leave Approver'
       );
 
       if (!hasApproverRole) {
-        console.log('User does not have OD Approver role');
+        console.log('User does not have Leave Approver role');
         setAllApplications([]);
         setIsLoadingApplications(false);
         return;
@@ -213,57 +209,49 @@ export default function ODApprovalApplicationList() {
       const employeeIds = teamMembers.map((emp: any) => emp.name);
       console.log('Fetching applications for', employeeIds.length, 'team members');
 
-      // Step 4: Fetch OD Applications for team members
-      const odApps = await frappeService.getList<any>('OD Application', {
+      // Step 4: Fetch Leave Applications for team members
+      const leaveApps = await frappeService.getList<any>('Leave Application', {
         fields: [
           'name',
           'employee',
           'employee_name',
-          'od_start_date',
-          'od_end_date',
-          'od_type',
-          'od_type_description',
-          'per_day_rate',
-          'location',
-          'approval_status',
-          'creation',
-          'approved_by',
-          'date_of_approval',
-          'rejected_by',
-          'date_of_rejection',
-          'reason_for_rejection'
+          'leave_type',
+          'from_date',
+          'to_date',
+          'custom_from_date_leave_value',
+          'custom_till_date_leave_value',
+          'description',
+          'status',
+          'posting_date',
+          'leave_approver'
         ],
         filters: [['employee', 'in', employeeIds]],
         limitPageLength: 0 // Get all
       });
 
-      console.log('Fetched OD Applications:', odApps.length);
+      console.log('Fetched Leave Applications:', leaveApps.length);
 
       // Transform applications
-      const transformedApps: ODApplication[] = odApps.map((app: any): ODApplication => ({
+      const transformedApps: LeaveApplication[] = leaveApps.map((app: any): LeaveApplication => ({
         id: app.name,
         employee: app.employee,
         employee_name: app.employee_name,
-        od_start_date: app.od_start_date,
-        od_end_date: app.od_end_date,
-        od_type: app.od_type,
-        od_type_description: app.od_type_description,
-        per_day_rate: app.per_day_rate,
-        location: app.location,
-        approval_status: app.approval_status,
-        date_of_application: app.creation?.split(' ')[0] || new Date().toISOString().split('T')[0],
-        approved_by: app.approved_by,
-        date_of_approval: app.date_of_approval,
-        rejected_by: app.rejected_by,
-        date_of_rejection: app.date_of_rejection,
-        reason_for_rejection: app.reason_for_rejection
+        leave_type: app.leave_type,
+        from_date: app.from_date,
+        to_date: app.to_date,
+        custom_from_date_leave_value: app.custom_from_date_leave_value,
+        custom_till_date_leave_value: app.custom_till_date_leave_value,
+        description: app.description,
+        status: app.status,
+        posting_date: app.posting_date,
+        leave_approver: app.leave_approver
       }));
 
       console.log('Total applications loaded:', transformedApps.length);
       setAllApplications(transformedApps);
     } catch (err) {
-      console.error('Error fetching OD applications for approval:', err);
-      setApplicationsError('Failed to load OD applications');
+      console.error('Error fetching Leave applications for approval:', err);
+      setApplicationsError('Failed to load Leave applications');
     } finally {
       setIsLoadingApplications(false);
     }
@@ -283,9 +271,9 @@ export default function ODApprovalApplicationList() {
 
     // Filter by tab (pending or complete)
     if (activeTab === 'pending') {
-      filtered = filtered.filter(app => app.approval_status === 'Pending' || app.approval_status === 'Open');
+      filtered = filtered.filter(app => app.status === 'Open');
     } else {
-      filtered = filtered.filter(app => app.approval_status === 'Approved' || app.approval_status === 'Rejected');
+      filtered = filtered.filter(app => app.status === 'Approved' || app.status === 'Rejected' || app.status === 'Cancelled');
     }
     console.log('After tab filter:', filtered.length);
 
@@ -298,7 +286,7 @@ export default function ODApprovalApplicationList() {
     // Sort
     filtered.sort((a, b) => {
       if (sortBy === 'date') {
-        return new Date(b.date_of_application).getTime() - new Date(a.date_of_application).getTime();
+        return new Date(b.posting_date).getTime() - new Date(a.posting_date).getTime();
       } else {
         return a.employee_name.localeCompare(b.employee_name);
       }
@@ -315,7 +303,7 @@ export default function ODApprovalApplicationList() {
 
   // Pending count - respects employee filter
   const pendingCount = useMemo(() => {
-    let pending = allApplications.filter(app => app.approval_status === 'Pending' || app.approval_status === 'Open');
+    let pending = allApplications.filter(app => app.status === 'Open');
     if (selectedEmployee) {
       pending = pending.filter(app => app.employee === selectedEmployee);
     }
@@ -324,7 +312,7 @@ export default function ODApprovalApplicationList() {
 
   // Complete count - respects employee filter
   const completeCount = useMemo(() => {
-    let complete = allApplications.filter(app => app.approval_status === 'Approved' || app.approval_status === 'Rejected');
+    let complete = allApplications.filter(app => app.status === 'Approved' || app.status === 'Rejected' || app.status === 'Cancelled');
     if (selectedEmployee) {
       complete = complete.filter(app => app.employee === selectedEmployee);
     }
@@ -355,10 +343,10 @@ export default function ODApprovalApplicationList() {
   }, [activeTab, selectedEmployee, sortBy]);
 
   // Handle Approve
-  const handleApprove = async (application: ODApplication) => {
+  const handleApprove = async (application: LeaveApplication) => {
     Alert.alert(
       'Approve Application',
-      `Are you sure you want to approve ${application.employee_name}'s OD application?`,
+      `Are you sure you want to approve ${application.employee_name}'s Leave application?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -367,10 +355,9 @@ export default function ODApprovalApplicationList() {
           onPress: async () => {
             try {
               // Update the application status
-              await frappeService.updateDoc('OD Application', application.id, {
-                approval_status: 'Approved',
-                approved_by: user?.employee_name,
-                date_of_approval: new Date().toISOString().split('T')[0]
+              await frappeService.updateDoc('Leave Application', application.id, {
+                status: 'Approved',
+                leave_approver: new Date().toISOString().split('T')[0]
               });
 
               Alert.alert('Success', 'Application approved successfully');
@@ -388,7 +375,7 @@ export default function ODApprovalApplicationList() {
   };
 
   // Handle Reject - Open Modal
-  const handleReject = (application: ODApplication) => {
+  const handleReject = (application: LeaveApplication) => {
     setApplicationToReject(application);
     setRejectionReason('');
     setShowRejectModal(true);
@@ -405,10 +392,8 @@ export default function ODApprovalApplicationList() {
 
     try {
       // Update the application status
-      await frappeService.updateDoc('OD Application', applicationToReject.id, {
-        approval_status: 'Rejected',
-        rejected_by: user?.employee_name,
-        date_of_rejection: new Date().toISOString().split('T')[0],
+      await frappeService.updateDoc('Leave Application', applicationToReject.id, {
+        status: 'Rejected',
         reason_for_rejection: rejectionReason.trim()
       });
 
@@ -428,15 +413,16 @@ export default function ODApprovalApplicationList() {
   };
 
   // Get status color
-  const getStatusColor = (status: ApprovalStatus) => {
+  const getStatusColor = (status: LeaveStatus) => {
     switch (status) {
       case 'Approved':
         return '#4CAF50';
       case 'Rejected':
         return '#F44336';
-      case 'Pending':
       case 'Open':
         return '#FF9800';
+      case 'Cancelled':
+        return '#9E9E9E';
       default:
         return theme.colors.textSecondary;
     }
@@ -448,20 +434,29 @@ export default function ODApprovalApplicationList() {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // Render OD application card
-  const renderODCard = ({ item }: { item: ODApplication }) => (
+  // Calculate leave days
+  const calculateLeaveDays = (fromDate: string, toDate: string): number => {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    const timeDifference = to.getTime() - from.getTime();
+    const dayDifference = Math.ceil(timeDifference / (1000 * 3600 * 24)) + 1;
+    return Math.max(dayDifference, 1);
+  };
+
+  // Render Leave application card
+  const renderLeaveCard = ({ item }: { item: LeaveApplication }) => (
     <View style={[styles.card, { backgroundColor: theme.colors.card }]}>
       {/* Header with Status */}
       <View style={styles.cardHeader}>
         <View style={[styles.typeBadge, { backgroundColor: '#9C27B0' + '20' }]}>
           <Text style={[styles.typeBadgeText, { color: '#9C27B0' }]}>
-            OD Application
+            Leave Application
           </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.approval_status) + '20' }]}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.approval_status) }]} />
-          <Text style={[styles.statusBadgeText, { color: getStatusColor(item.approval_status) }]}>
-            {item.approval_status}
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+          <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+          <Text style={[styles.statusBadgeText, { color: getStatusColor(item.status) }]}>
+            {item.status}
           </Text>
         </View>
       </View>
@@ -474,64 +469,53 @@ export default function ODApprovalApplicationList() {
         {item.employee}
       </Text>
 
+      {/* Leave Type */}
+      <View style={styles.infoRow}>
+        <Ionicons name="pricetag-outline" size={16} color={theme.colors.textSecondary} />
+        <Text style={[styles.infoText, { color: theme.colors.text, fontWeight: '600' }]}>
+          {item.leave_type}
+        </Text>
+      </View>
+
       {/* Date Range */}
       <View style={styles.infoRow}>
         <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-        <Text style={[styles.infoText, { color: theme.colors.text, fontWeight: '600' }]}>
-          {formatDate(item.od_start_date)} - {formatDate(item.od_end_date)}
-        </Text>
-      </View>
-
-      {/* OD Type */}
-      <View style={styles.infoRow}>
-        <Ionicons name="document-text-outline" size={16} color={theme.colors.textSecondary} />
         <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          {item.od_type_description}
+          {formatDate(item.from_date)} - {formatDate(item.to_date)}
         </Text>
       </View>
 
-      {/* Location */}
+      {/* Leave Days Count */}
       <View style={styles.infoRow}>
-        <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+        <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
         <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          {item.location}
+          Duration: {calculateLeaveDays(item.from_date, item.to_date)} day{calculateLeaveDays(item.from_date, item.to_date) !== 1 ? 's' : ''}
         </Text>
       </View>
 
-      {/* Per Day Rate */}
+      {/* Leave Values */}
       <View style={styles.infoRow}>
-        <Ionicons name="cash-outline" size={16} color={theme.colors.textSecondary} />
+        <Ionicons name="information-circle-outline" size={16} color={theme.colors.textSecondary} />
         <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-          ₹{item.per_day_rate} per day
+          From: {item.custom_from_date_leave_value} | Till: {item.custom_till_date_leave_value}
         </Text>
       </View>
 
-      {/* Approval Date */}
-      {item.approval_status === 'Approved' && item.date_of_approval && (
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-            Approved on {formatDate(item.date_of_approval)}
-            {item.approved_by && ` by ${item.approved_by}`}
+      {/* Description */}
+      {item.description && (
+        <View style={styles.infoRow}>
+          <Ionicons name="document-text-outline" size={16} color={theme.colors.textSecondary} />
+          <Text style={[styles.infoText, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+            {item.description}
           </Text>
         </View>
       )}
 
-      {/* Rejection Date */}
-      {item.approval_status === 'Rejected' && item.date_of_rejection && (
+      {/* Leave Approver */}
+      {item.status === 'Approved' && item.leave_approver && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-            Rejected on {formatDate(item.date_of_rejection)}
-            {item.rejected_by && ` by ${item.rejected_by}`}
-          </Text>
-        </View>
-      )}
-
-      {/* Rejection Reason */}
-      {item.approval_status === 'Rejected' && item.reason_for_rejection && (
-        <View style={[styles.rejectionBox, { backgroundColor: '#F4433620' }]}>
-          <Ionicons name="alert-circle-outline" size={16} color="#F44336" />
-          <Text style={[styles.rejectionText, { color: '#F44336' }]} numberOfLines={2}>
-            {item.reason_for_rejection}
+            Approved by {item.leave_approver}
           </Text>
         </View>
       )}
@@ -539,12 +523,12 @@ export default function ODApprovalApplicationList() {
       {/* Application Date */}
       <View style={[styles.footer, { borderTopWidth: 0, paddingTop: 4 }]}>
         <Text style={[styles.footerText, { color: theme.colors.textSecondary, fontSize: 11 }]}>
-          Applied on {formatDate(item.date_of_application)}
+          Applied on {formatDate(item.posting_date)}
         </Text>
       </View>
 
       {/* Action Buttons - Only show on Pending tab */}
-      {activeTab === 'pending' && (item.approval_status === 'Pending' || item.approval_status === 'Open') && (
+      {activeTab === 'pending' && item.status === 'Open' && (
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.rejectButton, { backgroundColor: '#F44336' }]}
@@ -577,7 +561,7 @@ export default function ODApprovalApplicationList() {
               <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              OD Approval Requests
+              Leave Approval Requests
             </Text>
           </View>
         </View>
@@ -756,7 +740,7 @@ export default function ODApprovalApplicationList() {
         {/* Applications List */}
         <FlatList
           data={displayedApplications}
-          renderItem={renderODCard}
+          renderItem={renderLeaveCard}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           scrollEnabled={!showEmployeeDropdown}
@@ -784,7 +768,7 @@ export default function ODApprovalApplicationList() {
             <View style={styles.emptyContainer}>
               <Ionicons name="document-outline" size={64} color={theme.colors.textSecondary} />
               <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                No OD approval requests found
+                No Leave approval requests found
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}>
                 {activeTab === 'pending'
@@ -800,7 +784,7 @@ export default function ODApprovalApplicationList() {
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={[styles.loadingText, { color: '#FFFFFF' }]}>
-              Loading OD approval requests...
+              Loading Leave approval requests...
             </Text>
           </View>
         )}
@@ -832,7 +816,7 @@ export default function ODApprovalApplicationList() {
                 Reject Application
               </Text>
               <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
-                {applicationToReject ? `Enter reason for rejecting ${applicationToReject.employee_name}'s OD application:` : ''}
+                {applicationToReject ? `Enter reason for rejecting ${applicationToReject.employee_name}'s Leave application:` : ''}
               </Text>
 
               <TextInput

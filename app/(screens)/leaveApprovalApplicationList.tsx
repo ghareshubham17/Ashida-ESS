@@ -75,19 +75,35 @@ export default function LeaveApprovalApplicationList() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [applicationToReject, setApplicationToReject] = useState<LeaveApplication | null>(null);
 
-  // Fetch employees with server-side search - only those reporting to logged-in user
+  // Fetch employees with server-side search - only team members
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
         setLoadingEmployees(true);
 
+        // Get logged-in user's team
+        const loggedinEmp = await frappeService.getList<any>('Employee', {
+          fields: ['user_id', 'team'],
+          filters: [['name', '=', user?.employee_id]],
+          limitPageLength: 1
+        });
+
+        if (loggedinEmp.length === 0 || !loggedinEmp[0].team) {
+          setEmployees([]);
+          setLoadingEmployees(false);
+          return;
+        }
+
+        const userTeam = loggedinEmp[0].team;
+
         const filters: any[] = [
-          ['reports_to', '=', user?.employee_id]
+          ['team', '=', userTeam],
+          ['name', '!=', user?.employee_id] // Exclude logged-in user
         ];
 
         // Add search filter if user has typed something
         if (employeeSearchQuery.trim()) {
-          console.log('Searching reporting employees:', employeeSearchQuery);
+          console.log('Searching team members:', employeeSearchQuery);
           filters.push(['employee_name', 'like', `%${employeeSearchQuery}%`]);
         }
 
@@ -98,7 +114,7 @@ export default function LeaveApprovalApplicationList() {
           orderBy: 'employee_name asc'
         });
 
-        console.log('Found reporting employees:', empList.length);
+        console.log('Found team members:', empList.length);
 
         const formattedEmployees = empList.map((emp: any) => ({
           id: emp.name,
@@ -107,7 +123,7 @@ export default function LeaveApprovalApplicationList() {
 
         setEmployees(formattedEmployees);
       } catch (err) {
-        console.error('Error fetching reporting employees:', err);
+        console.error('Error fetching team members:', err);
         setEmployees([]);
       } finally {
         setLoadingEmployees(false);
@@ -284,6 +300,24 @@ export default function LeaveApprovalApplicationList() {
   const displayedApplications = useMemo(() => {
     return filteredApplications.slice(0, displayCount);
   }, [filteredApplications, displayCount]);
+
+  // Pending count - respects employee filter
+  const pendingCount = useMemo(() => {
+    let pending = allApplications.filter(app => app.status === 'Open');
+    if (selectedEmployee) {
+      pending = pending.filter(app => app.employee === selectedEmployee);
+    }
+    return pending.length;
+  }, [allApplications, selectedEmployee]);
+
+  // Complete count - respects employee filter
+  const completeCount = useMemo(() => {
+    let complete = allApplications.filter(app => app.status === 'Approved' || app.status === 'Rejected' || app.status === 'Cancelled');
+    if (selectedEmployee) {
+      complete = complete.filter(app => app.employee === selectedEmployee);
+    }
+    return complete.length;
+  }, [allApplications, selectedEmployee]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {
@@ -552,6 +586,22 @@ export default function LeaveApprovalApplicationList() {
                   onChangeText={setEmployeeSearchQuery}
                   onFocus={() => setShowEmployeeDropdown(true)}
                 />
+                {employeeSearchQuery.trim() ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEmployeeSearchQuery('');
+                      setSelectedEmployee('');
+                      setShowEmployeeDropdown(true);
+                    }}
+                    style={styles.clearButton}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                ) : null}
                 <Ionicons
                   name={showEmployeeDropdown ? 'chevron-up' : 'chevron-down'}
                   size={20}
@@ -565,6 +615,12 @@ export default function LeaveApprovalApplicationList() {
                       <ActivityIndicator size="small" color={theme.colors.primary} />
                       <Text style={[styles.dropdownLoadingText, { color: theme.colors.textSecondary }]}>
                         Loading employees...
+                      </Text>
+                    </View>
+                  ) : employees.length === 0 && employeeSearchQuery.trim() ? (
+                    <View style={styles.dropdownLoading}>
+                      <Text style={[styles.dropdownLoadingText, { color: theme.colors.textSecondary }]}>
+                        No employee found
                       </Text>
                     </View>
                   ) : (
@@ -650,7 +706,7 @@ export default function LeaveApprovalApplicationList() {
               </Text>
               <View style={[styles.tabBadge, { backgroundColor: '#FF9800' }]}>
                 <Text style={styles.tabBadgeText}>
-                  {allApplications.filter(app => app.status === 'Open').length}
+                  {pendingCount}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -674,7 +730,7 @@ export default function LeaveApprovalApplicationList() {
               </Text>
               <View style={[styles.tabBadge, { backgroundColor: theme.colors.primary }]}>
                 <Text style={styles.tabBadgeText}>
-                  {allApplications.filter(app => app.status === 'Approved' || app.status === 'Rejected' || app.status === 'Cancelled').length}
+                  {completeCount}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -863,6 +919,10 @@ const styles = StyleSheet.create({
   filterInputText: {
     flex: 1,
     fontSize: 14,
+  },
+  clearButton: {
+    padding: 4,
+    marginRight: 4,
   },
   dropdown: {
     position: 'absolute',

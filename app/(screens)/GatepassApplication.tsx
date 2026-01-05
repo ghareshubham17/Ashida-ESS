@@ -24,11 +24,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
+const PURPOSE_OPTIONS = ['Personal', 'Official'];
+
 interface Employee {
   name: string;
   employee_name: string;
   user_id: string;
   attendance_device_id: string;
+  department: string;
 }
 
 interface MonthlyUsage {
@@ -40,106 +43,146 @@ interface MonthlyUsage {
 
 interface GatepassApplication {
   employee: string;
+  employee_name: string;
+  department: string;
+  attendance_device_id: string;
   date_of_application: string;
   gp_start_time: string;
+  gp_end_time: string;
   purpose_of_gp: string;
+  approval_status: string;
 }
 
 export default function GatepassApplicationScreen() {
+  const frappeService = useFrappeService();
   const { user } = useAuth();
   const router = useRouter();
-  const { getList, createDoc, call, submitDoc } = useFrappeService();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
-  // State management
-  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
-  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
+  // Auto-filled fields (disabled)
+  const [employee, setEmployee] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [attendanceDeviceId, setAttendanceDeviceId] = useState('');
+  const [approvalStatus] = useState('Pending'); // Always Pending for new applications
+
+  // User-filled fields
   const [applicationDate] = useState(new Date());
   const [startTime, setStartTime] = useState(new Date());
-  const [endTime, setEndTime] = useState(new Date());
+  const [endTime, setEndTime] = useState(() => {
+    const end = new Date();
+    end.setHours(end.getHours() + 2);
+    return end;
+  });
   const [purpose, setPurpose] = useState<'Personal' | 'Official'>('Personal');
+
+  // UI State
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
+  const [showPurposeDropdown, setShowPurposeDropdown] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(true);
+  const [loadingUsage, setLoadingUsage] = useState(true);
 
-  // Load employee and monthly usage on component mount
+  // Monthly usage state
+  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyUsage | null>(null);
+
+  // Fetch employee details and monthly usage on mount
   useEffect(() => {
-    fetchEmployeeAndUsage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const fetchEmployeeAndUsage = async () => {
+      try {
+        setIsLoadingEmployee(true);
+        setLoadingUsage(true);
 
-  const fetchEmployeeAndUsage = async () => {
-    try {
-      // First, get current employee
-      const employees = await getList<Employee>('Employee', {
-        fields: ['name', 'employee_name', 'user_id', 'attendance_device_id'],
-        filters: { user_id: user?.email },
-        limitPageLength: 1,
-      });
+        if (user?.employee_id) {
+          const empData = await frappeService.getDoc<any>('Employee', user.employee_id);
 
-      if (employees && employees.length > 0) {
-        setCurrentEmployee(employees[0]);
+          setEmployee(empData.name || user.employee_id);
+          setEmployeeName(empData.employee_name || user.employee_name || '');
+          setDepartment(empData.department || '');
+          setAttendanceDeviceId(empData.attendance_device_id || '');
 
-        // Then fetch monthly usage
-        try {
-          const usage = await call<MonthlyUsage>(
-            'ashida.ashida_gaxis.doctype.gate_pass_application.gate_pass_application.get_employee_monthly_usage',
-            {
-              employee: employees[0].name,
-              date: formatDateForAPI(new Date()),
+          // Fetch monthly usage
+          try {
+            const usage = await frappeService.call<MonthlyUsage>(
+              'ashida.ashida_gaxis.doctype.gate_pass_application.gate_pass_application.get_employee_monthly_usage',
+              {
+                employee: empData.name || user.employee_id,
+                date: formatDateForAPI(new Date()),
+              }
+            );
+
+            if (usage) {
+              setMonthlyUsage({
+                total_hours_used: usage.total_hours_used ?? 0,
+                monthly_limit: usage.monthly_limit ?? 4.0,
+                remaining_hours: usage.remaining_hours ?? 4.0,
+                total_overall_hours: usage.total_overall_hours ?? 0,
+              });
             }
-          );
-
-          if (usage) {
-            // Ensure all values are valid numbers, provide defaults if undefined/null
+          } catch (usageError) {
+            console.error('Error fetching monthly usage:', usageError);
+            // Set default values if API fails
             setMonthlyUsage({
-              total_hours_used: usage.total_hours_used ?? 0,
-              monthly_limit: usage.monthly_limit ?? 4.0,
-              remaining_hours: usage.remaining_hours ?? 4.0,
-              total_overall_hours: usage.total_overall_hours ?? 0,
+              total_hours_used: 0,
+              monthly_limit: 4.0,
+              remaining_hours: 4.0,
+              total_overall_hours: 0,
             });
+          } finally {
+            setLoadingUsage(false);
           }
-        } catch (usageError) {
-          console.error('Error fetching monthly usage:', usageError);
-          // Set default values if API fails
-          setMonthlyUsage({
-            total_hours_used: 0,
-            monthly_limit: 4.0,
-            remaining_hours: 4.0,
-            total_overall_hours: 0,
-          });
         }
-      } else {
-        Alert.alert('Error', 'Employee record not found. Please contact HR.');
+      } catch (error) {
+        console.error('Error fetching employee details:', error);
+        // Fallback to user data
+        setEmployee(user?.employee_id || '');
+        setEmployeeName(user?.employee_name || '');
+        setAttendanceDeviceId(user?.device_id || '');
+        setDepartment('');
+
+        // Set default usage values
+        setMonthlyUsage({
+          total_hours_used: 0,
+          monthly_limit: 4.0,
+          remaining_hours: 4.0,
+          total_overall_hours: 0,
+        });
+        setLoadingUsage(false);
+      } finally {
+        setIsLoadingEmployee(false);
       }
-    } catch (error) {
-      console.error('Error fetching employee data:', error);
-      Alert.alert('Error', 'Failed to load employee information');
-    } finally {
-      setLoadingData(false);
-    }
-  };
+    };
 
+    fetchEmployeeAndUsage();
+  }, [user, frappeService]);
+
+  // Format date to YYYY-MM-DD for API
   const formatDateForAPI = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
+  // Format time to HH:MM:SS for API
   const formatTimeForAPI = (date: Date): string => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}:00`;
   };
 
-  const formatDate = (date: Date): string => {
+  // Format date for display (e.g., "Dec 10, 2025")
+  const formatDateForDisplay = (date: Date): string => {
     return date.toLocaleDateString('en-US', {
-      day: '2-digit',
-      month: 'short',
       year: 'numeric',
+      month: 'short',
+      day: 'numeric',
     });
   };
 
-  const formatTime = (date: Date): string => {
+  // Format time for display (e.g., "14:30")
+  const formatTimeForDisplay = (date: Date): string => {
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -147,6 +190,41 @@ export default function GatepassApplicationScreen() {
     });
   };
 
+  // Validate form
+  const validateForm = (): boolean => {
+    if (!purpose) {
+      Alert.alert('Validation Error', 'Please select a purpose');
+      return false;
+    }
+
+    if (!monthlyUsage) {
+      Alert.alert('Validation Error', 'Loading usage data...');
+      return false;
+    }
+
+    // Validate start time is not in the past
+    const now = new Date();
+    const startDateTime = new Date(applicationDate);
+    startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), startTime.getSeconds());
+
+    if (startDateTime < now) {
+      Alert.alert('Validation Error', 'GP Start Time cannot be in the past. Please select a future time.');
+      return false;
+    }
+
+    // Check sufficient hours (2-hour gatepass)
+    if (monthlyUsage.remaining_hours < 2.0) {
+      Alert.alert(
+        'Validation Error',
+        `Insufficient hours. You have ${monthlyUsage.remaining_hours.toFixed(2)} hours remaining this month.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  // Handle start time change
   const onStartTimeChange = (event: DateTimePickerEvent, selectedTime?: Date) => {
     setShowTimePicker(Platform.OS === 'ios');
     if (selectedTime) {
@@ -172,80 +250,213 @@ export default function GatepassApplicationScreen() {
     }
   };
 
-  const validateSubmission = (): string | null => {
-    if (!currentEmployee) return 'Employee information not loaded';
-    if (!purpose) return 'Please select a purpose';
-    if (!monthlyUsage) return 'Loading usage data...';
-
-    // Validate start time is not in the past
-    const now = new Date();
-    const startDateTime = new Date(applicationDate);
-    startDateTime.setHours(startTime.getHours(), startTime.getMinutes(), startTime.getSeconds());
-
-    if (startDateTime < now) {
-      return 'GP Start Time cannot be in the past. Please select a future time.';
+  // Parse Frappe error and return user-friendly message
+  const parseErrorMessage = (error: any): string => {
+    // Only log debug info for non-validation errors
+    const isTestAdmin = user?.employee_id === 'EMP-TEST-ADMIN';
+    const isValidationError = error?.message && typeof error.message === 'string' && error.message.includes('exceeding the');
+    if (!(isTestAdmin && isValidationError)) {
+      console.log('=== ERROR DEBUGGING ===');
+      console.log('Error type:', typeof error);
+      console.log('Error:', error);
+      console.log('Error.message type:', typeof error?.message);
+      console.log('Error.message:', error?.message);
+      console.log('Is array?', Array.isArray(error?.message));
+      console.log('======================');
     }
 
-    // Check sufficient hours (2-hour gatepass)
-    if (monthlyUsage.remaining_hours < 2.0) {
-      return `Insufficient hours. You have ${monthlyUsage.remaining_hours.toFixed(2)} hours remaining this month.`;
-    }
+    // Handle different error formats from Frappe
+    try {
+      let tracebackStr = null;
 
-    return null; // Valid
+      // Case 1: error.message is an array (Frappe traceback format)
+      if (error?.message && Array.isArray(error.message)) {
+        tracebackStr = error.message[0];
+      }
+      // Case 2: error.message is a stringified array
+      else if (error?.message && typeof error.message === 'string') {
+        // Try to parse it as JSON array
+        if (error.message.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(error.message);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              tracebackStr = parsed[0];
+            }
+          } catch (e) {
+            // Not a valid JSON array, treat as regular string
+            console.log('Not a JSON array, treating as string');
+          }
+        }
+      }
+
+      // If we have a traceback string, extract the actual error message
+      if (tracebackStr && typeof tracebackStr === 'string') {
+        try {
+          console.log('Parsing traceback string...');
+
+          // Extract the last line which contains the actual error
+          const lines = tracebackStr.split('\n').filter((line: string) => line.trim());
+          const lastLine = lines[lines.length - 1];
+
+          console.log('Last line of traceback:', lastLine);
+
+          // Extract message after the exception type (e.g., "ValidationError: Message")
+          if (lastLine.includes(':')) {
+            const colonIndex = lastLine.indexOf(':');
+            const message = lastLine.substring(colonIndex + 1).trim();
+
+            console.log('Extracted message:', message);
+
+            if (message) {
+              return message;
+            }
+          }
+
+          return lastLine;
+        } catch (e) {
+          console.error('Error parsing traceback string:', e);
+        }
+      }
+
+      // Check if error has _server_messages
+      if (error?._server_messages) {
+        try {
+          const messages = JSON.parse(error._server_messages);
+          if (Array.isArray(messages) && messages.length > 0) {
+            const parsed = JSON.parse(messages[0]);
+            return parsed.message || 'An error occurred while submitting the application.';
+          }
+        } catch (e) {
+          // If parsing fails, continue to next check
+        }
+      }
+
+      // Check if error has exc_type (exception messages)
+      if (error?.exc_type) {
+        return error.exc_type;
+      }
+
+      // Check if error has exception message
+      if (error?.exception) {
+        // Extract readable message from exception
+        const exceptionStr = typeof error.exception === 'string' ? error.exception : JSON.stringify(error.exception);
+
+        // Common Frappe error patterns
+        if (exceptionStr.includes('Duplicate entry')) {
+          return 'A similar gatepass application already exists. Please check your pending applications.';
+        }
+        if (exceptionStr.includes('Mandatory field')) {
+          const fieldMatch = exceptionStr.match(/Mandatory field: (.+)/);
+          return fieldMatch ? `Required field missing: ${fieldMatch[1]}` : 'Some required fields are missing.';
+        }
+        if (exceptionStr.includes('does not have permission')) {
+          return 'You do not have permission to submit this application. Please contact your administrator.';
+        }
+        if (exceptionStr.includes('ValidationError')) {
+          return 'Validation failed. Please check your input and try again.';
+        }
+
+        // Return first line of exception if it's readable
+        const firstLine = exceptionStr.split('\n')[0];
+        if (firstLine && firstLine.length < 100 && !firstLine.includes('Traceback')) {
+          return firstLine;
+        }
+      }
+
+      // Check for message property as string
+      if (error?.message && typeof error.message === 'string') {
+        const message = error.message;
+
+        // Filter out technical error messages
+        if (message.includes('fetch') || message.includes('Network')) {
+          return 'Network error. Please check your internet connection and try again.';
+        }
+        if (message.includes('timeout')) {
+          return 'Request timeout. Please try again.';
+        }
+
+        // If it's a reasonably short message without code traces, show it
+        if (!message.includes('Error:') && !message.includes('at ') && message.length < 200) {
+          return message;
+        }
+
+        // As a last resort, show the raw message even if technical
+        console.log('Showing raw error message as fallback');
+        return message;
+      }
+
+      // Check if error is a string
+      if (typeof error === 'string') {
+        return error;
+      }
+
+      // Default fallback
+      console.log('Reached default fallback - no error message found');
+      return 'Failed to submit gatepass application. Please try again or contact support.';
+    } catch (e) {
+      console.error('Error parsing error message:', e);
+      // Even in catch, try to show something useful
+      if (error?.message) {
+        return String(error.message);
+      }
+      return 'An unexpected error occurred. Please try again.';
+    }
   };
 
   const handleSubmit = async () => {
-    // Validate
-    const error = validateSubmission();
-    if (error) {
-      Alert.alert('Error', error);
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
-      setLoading(true);
+      setIsSubmitting(true);
 
-      const gatepassData: GatepassApplication = {
-        employee: currentEmployee!.name,
+      const applicationData: GatepassApplication = {
+        employee: employee,
+        employee_name: employeeName,
+        department: department,
+        attendance_device_id: attendanceDeviceId,
         date_of_application: formatDateForAPI(applicationDate),
         gp_start_time: formatTimeForAPI(startTime),
+        gp_end_time: formatTimeForAPI(endTime),
         purpose_of_gp: purpose,
+        approval_status: approvalStatus,
       };
 
-      console.log('Submitting gatepass data:', gatepassData);
+      console.log('Submitting Gatepass Application:', applicationData);
 
       // Create the document
-      const createdDoc = await createDoc('Gate Pass Application', gatepassData);
+      const createdDoc = await frappeService.createDoc('Gate Pass Application', applicationData);
       console.log('Document created:', createdDoc);
 
       // Submit the document (change docstatus to 1)
       if (createdDoc?.name) {
         console.log('Submitting document:', createdDoc.name);
-        await submitDoc('Gate Pass Application', createdDoc.name);
+        await frappeService.submitDoc('Gate Pass Application', createdDoc.name);
         console.log('Document submitted successfully');
       }
 
       Alert.alert('Success', 'Your gatepass application has been submitted successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
+        { text: 'OK', onPress: () => router.back() }
       ]);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to submit gatepass application';
+
+      // Reset form
+      setStartTime(new Date());
+      const newEndTime = new Date();
+      newEndTime.setHours(newEndTime.getHours() + 2);
+      setEndTime(newEndTime);
+      setPurpose('Personal');
+    } catch (error: any) {
+      const errorMessage = parseErrorMessage(error);
 
       // Only log non-validation errors to avoid cluttering console
-      // Validation errors only occur for test_admin (mock validation)
       const isTestAdmin = user?.employee_id === 'EMP-TEST-ADMIN';
-      const isValidationError = errorMessage.includes('gatepass already exists');
+      const isValidationError = errorMessage.includes('exceeding the');
       if (!(isTestAdmin && isValidationError)) {
         console.error('Error submitting gatepass:', error);
       }
 
-      Alert.alert('Error', 'Failed to submit gatepass application: ' + errorMessage);
+      Alert.alert('Submission Failed', errorMessage);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -261,26 +472,6 @@ export default function GatepassApplicationScreen() {
     if (!monthlyUsage) return 0;
     return Math.min((monthlyUsage.total_hours_used / monthlyUsage.monthly_limit) * 100, 100);
   };
-
-  const renderPurposeChip = (chipPurpose: 'Personal' | 'Official') => (
-    <TouchableOpacity
-      key={chipPurpose}
-      style={[
-        styles.purposeChip,
-        purpose === chipPurpose && styles.purposeChipSelected,
-      ]}
-      onPress={() => setPurpose(chipPurpose)}
-    >
-      <Text
-        style={[
-          styles.purposeChipText,
-          purpose === chipPurpose && styles.purposeChipTextSelected,
-        ]}
-      >
-        {chipPurpose}
-      </Text>
-    </TouchableOpacity>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -298,160 +489,223 @@ export default function GatepassApplicationScreen() {
           <View style={{ width: 24 }} />
         </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.formContainer}>
-          {/* User Info Card */}
-          {currentEmployee && (
-            <View style={styles.userInfoCard}>
-              <LinearGradient
-                colors={[COLORS.primary, COLORS.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.userInfoGradient}
-              >
-                <Ionicons name="person" size={24} color="#fff" />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{currentEmployee.employee_name}</Text>
-                  <Text style={styles.userEmployee}>
-                    ECode: {currentEmployee.attendance_device_id || currentEmployee.name || 'N/A'}
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-          )}
-
-          {/* Monthly Usage Card */}
-          {loadingData ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Loading usage data...</Text>
-            </View>
-          ) : monthlyUsage && (
-            <View style={styles.usageCard}>
-              <Text style={styles.usageTitle}>Monthly Gatepass Usage</Text>
-              <View style={styles.usageRow}>
-                <Text style={styles.usageLabel}>Used:</Text>
-                <Text style={styles.usageValue}>
-                  {monthlyUsage.total_hours_used.toFixed(2)} / {monthlyUsage.monthly_limit.toFixed(2)} hours
-                </Text>
-              </View>
-              <View style={styles.usageRow}>
-                <Text style={styles.usageLabel}>Remaining:</Text>
-                <Text style={[styles.usageValue, { color: getUsageColor() }]}>
-                  {monthlyUsage.remaining_hours.toFixed(2)} hours
-                </Text>
-              </View>
-              {/* Progress Bar */}
-              <View style={styles.progressBarContainer}>
-                <View style={styles.progressBarBackground}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      {
-                        width: `${getUsagePercentage()}%`,
-                        backgroundColor: getUsageColor(),
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* Application Date */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Application Date</Text>
-            <View style={styles.dateButtonReadonly}>
-              <Ionicons name="calendar" size={20} color={COLORS.primary} />
-              <Text style={styles.dateButtonText}>{formatDate(applicationDate)}</Text>
-            </View>
+        {isLoadingEmployee ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              Loading employee details...
+            </Text>
           </View>
-
-          {/* Start Time Picker */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Start Time *</Text>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Ionicons name="time" size={20} color={COLORS.primary} />
-              <Text style={styles.dateButtonText}>{formatTime(startTime)}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* End Time Display (Auto-calculated) */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>End Time (Auto-calculated)</Text>
-            <View style={styles.dateButtonReadonly}>
-              <Ionicons name="time-outline" size={20} color="#9CA3AF" />
-              <Text style={[styles.dateButtonText, { color: '#9CA3AF' }]}>
-                {formatTime(endTime)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Purpose Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Purpose *</Text>
-            <View style={styles.purposeContainer}>
-              {renderPurposeChip('Personal')}
-              {renderPurposeChip('Official')}
-            </View>
-          </View>
-
-          {/* Summary Card */}
-          <View style={styles.summaryContainer}>
-            <Text style={styles.summaryTitle}>Summary</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Duration:</Text>
-              <Text style={styles.summaryValue}>2.00 hours</Text>
-            </View>
-            {monthlyUsage && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Will use:</Text>
-                <Text style={styles.summaryValue}>
-                  {(monthlyUsage.total_hours_used + 2.0).toFixed(2)} / {monthlyUsage.monthly_limit.toFixed(2)} hours
-                </Text>
+        ) : (
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={!showPurposeDropdown}
+          >
+            {/* User Info Card */}
+            {employeeName && attendanceDeviceId && (
+              <View style={styles.userInfoCard}>
+                <LinearGradient
+                  colors={[COLORS.primary, COLORS.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.userInfoGradient}
+                >
+                  <Ionicons name="person" size={24} color="#fff" />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{employeeName}</Text>
+                    <Text style={styles.userEmployee}>ECode: {attendanceDeviceId}</Text>
+                  </View>
+                </LinearGradient>
               </View>
             )}
-          </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading || loadingData}
-          >
-            <LinearGradient
-              colors={loading || loadingData ? ['#9CA3AF', '#9CA3AF'] : [COLORS.primary, COLORS.secondary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.submitButtonGradient}
+            {/* Monthly Usage Card */}
+            {loadingUsage ? (
+              <View style={styles.usageLoadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={[styles.usageLoadingText, { color: theme.colors.textSecondary }]}>
+                  Loading usage data...
+                </Text>
+              </View>
+            ) : monthlyUsage && (
+              <View style={styles.usageCard}>
+                <Text style={[styles.usageTitle, { color: theme.colors.text }]}>Monthly Gatepass Usage</Text>
+                <View style={styles.usageRow}>
+                  <Text style={[styles.usageLabel, { color: theme.colors.textSecondary }]}>Used:</Text>
+                  <Text style={[styles.usageValue, { color: theme.colors.text }]}>
+                    {monthlyUsage.total_hours_used.toFixed(2)} / {monthlyUsage.monthly_limit.toFixed(2)} hours
+                  </Text>
+                </View>
+                <View style={styles.usageRow}>
+                  <Text style={[styles.usageLabel, { color: theme.colors.textSecondary }]}>Remaining:</Text>
+                  <Text style={[styles.usageValue, { color: getUsageColor() }]}>
+                    {monthlyUsage.remaining_hours.toFixed(2)} hours
+                  </Text>
+                </View>
+                {/* Progress Bar */}
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBarBackground}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${getUsagePercentage()}%`,
+                          backgroundColor: getUsageColor(),
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+                {/* Warning message if insufficient hours */}
+                {monthlyUsage.remaining_hours < 2.0 && (
+                  <View style={styles.warningContainer}>
+                    <Ionicons name="warning" size={16} color="#EF4444" />
+                    <Text style={styles.warningText}>
+                      Insufficient hours remaining for a 2-hour gatepass
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Application Date */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Application Date
+              </Text>
+              <View style={[styles.datePickerButtonDisabled, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} />
+                <Text style={[styles.datePickerText, { color: theme.colors.textSecondary }]}>
+                  {formatDateForDisplay(applicationDate)}
+                </Text>
+              </View>
+              <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
+                Auto-filled to today's date
+              </Text>
+            </View>
+
+            {/* Start Time Picker */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Start Time <Text style={styles.required}>*</Text>
+              </Text>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={() => {
+                  setShowTimePicker(true);
+                  setShowPurposeDropdown(false);
+                }}
+              >
+                <Ionicons name="time-outline" size={20} color={theme.colors.primary} />
+                <Text style={[styles.datePickerText, { color: theme.colors.text }]}>
+                  {formatTimeForDisplay(startTime)}
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
+                Tap to select time (Future time only)
+              </Text>
+              {showTimePicker && (
+                <DateTimePicker
+                  value={startTime}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onStartTimeChange}
+                />
+              )}
+            </View>
+
+            {/* End Time Display (Auto-calculated) */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                End Time (Auto-calculated)
+              </Text>
+              <View style={[styles.datePickerButtonDisabled, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
+                <Text style={[styles.datePickerText, { color: theme.colors.textSecondary }]}>
+                  {formatTimeForDisplay(endTime)}
+                </Text>
+              </View>
+              <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
+                Auto-calculated as Start Time + 2 hours
+              </Text>
+            </View>
+
+            {/* Purpose (Dropdown) */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Purpose <Text style={styles.required}>*</Text>
+              </Text>
+              <TouchableOpacity
+                style={[styles.dropdown, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+                onPress={() => setShowPurposeDropdown(!showPurposeDropdown)}
+              >
+                <Text style={[styles.dropdownText, { color: theme.colors.text }]}>
+                  {purpose}
+                </Text>
+                <Ionicons
+                  name={showPurposeDropdown ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {showPurposeDropdown && (
+                <View style={[styles.dropdownMenu, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  {PURPOSE_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[styles.dropdownItem, { borderBottomColor: theme.colors.border }]}
+                      onPress={() => {
+                        setPurpose(option as 'Personal' | 'Official');
+                        setShowPurposeDropdown(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, { color: theme.colors.text }]}>
+                        {option}
+                      </Text>
+                      {purpose === option && (
+                        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Summary Card */}
+            <View style={[styles.summaryCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <Text style={[styles.summaryTitle, { color: theme.colors.text }]}>Summary</Text>
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Duration:</Text>
+                <Text style={[styles.summaryValue, { color: theme.colors.text }]}>2.00 hours</Text>
+              </View>
+              {monthlyUsage && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Will use:</Text>
+                  <Text style={[styles.summaryValue, { color: theme.colors.text }]}>
+                    {(monthlyUsage.total_hours_used + 2.0).toFixed(2)} / {monthlyUsage.monthly_limit.toFixed(2)} hours
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: COLORS.primary }]}
+              onPress={handleSubmit}
+              disabled={isSubmitting || loadingUsage}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Ionicons name="send" size={20} color="#fff" />
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={styles.submitButtonText}>Submit Application</Text>
                 </>
               )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-        {/* Time Picker */}
-        {showTimePicker && (
-          <DateTimePicker
-            value={startTime}
-            mode="time"
-            display="default"
-            onChange={onStartTimeChange}
-          />
+            </TouchableOpacity>
+          </ScrollView>
         )}
       </SafeAreaView>
     </View>
@@ -480,11 +734,12 @@ const styles = StyleSheet.create({
     fontSize: width > 768 ? 20 : 18,
     fontWeight: '700',
   },
-  scrollView: {
+  content: {
     flex: 1,
   },
-  formContainer: {
-    padding: 20,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 120,
   },
   userInfoCard: {
     borderRadius: 16,
@@ -521,6 +776,39 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 4,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  usageLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  usageLoadingText: {
+    marginLeft: 12,
+    fontSize: width > 768 ? 16 : 14,
+  },
   usageCard: {
     backgroundColor: '#fff',
     padding: 20,
@@ -541,7 +829,6 @@ const styles = StyleSheet.create({
   usageTitle: {
     fontSize: width > 768 ? 18 : 16,
     fontWeight: '700',
-    color: '#333',
     marginBottom: 16,
   },
   usageRow: {
@@ -552,12 +839,10 @@ const styles = StyleSheet.create({
   },
   usageLabel: {
     fontSize: width > 768 ? 16 : 14,
-    color: '#666',
   },
   usageValue: {
     fontSize: width > 768 ? 16 : 14,
     fontWeight: '600',
-    color: '#333',
   },
   progressBarContainer: {
     marginTop: 8,
@@ -572,115 +857,100 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
-  loadingContainer: {
+  warningContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#EF4444',
   },
-  loadingText: {
-    marginLeft: 12,
-    color: '#666',
-    fontSize: width > 768 ? 16 : 14,
+  warningText: {
+    marginLeft: 8,
+    fontSize: width > 768 ? 14 : 12,
+    color: '#EF4444',
+    fontWeight: '600',
+    flex: 1,
   },
-  inputGroup: {
-    marginBottom: 24,
+  fieldContainer: {
+    marginBottom: 20,
   },
   label: {
-    fontSize: width > 768 ? 18 : 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  dateButton: {
+  required: {
+    color: '#F44336',
+  },
+  hint: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  dateButtonReadonly: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  dateButtonText: {
-    marginLeft: 12,
-    fontSize: width > 768 ? 16 : 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  purposeContainer: {
-    flexDirection: 'row',
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     gap: 12,
   },
-  purposeChip: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+  datePickerButtonDisabled: {
+    flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    opacity: 0.6,
   },
-  purposeChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  datePickerText: {
+    fontSize: 16,
+    flex: 1,
   },
-  purposeChipText: {
-    fontSize: width > 768 ? 16 : 14,
-    color: '#666',
-    fontWeight: '600',
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  purposeChipTextSelected: {
-    color: '#fff',
+  dropdownText: {
+    fontSize: 16,
+    flex: 1,
   },
-  summaryContainer: {
-    backgroundColor: '#fff',
+  dropdownMenu: {
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+  },
+  summaryCard: {
     padding: 20,
     borderRadius: 16,
+    borderWidth: 1,
     marginBottom: 24,
     ...Platform.select({
       ios: {
@@ -697,7 +967,6 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: width > 768 ? 18 : 16,
     fontWeight: '700',
-    color: '#333',
     marginBottom: 16,
   },
   summaryRow: {
@@ -708,45 +977,33 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: width > 768 ? 16 : 14,
-    color: '#666',
   },
   summaryValue: {
     fontSize: width > 768 ? 16 : 14,
     fontWeight: '600',
-    color: '#333',
   },
   submitButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 8,
     marginTop: 24,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
-  submitButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
   submitButtonText: {
     color: '#fff',
-    fontSize: width > 768 ? 18 : 16,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  bottomSpacing: {
-    height: 32,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

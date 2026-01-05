@@ -57,6 +57,8 @@ export default function GatepassApplicationList() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingApplications, setIsLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
+  const [hasReportingEmployees, setHasReportingEmployees] = useState<boolean>(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState<number>(0);
 
   const PAGE_SIZE = 20;
 
@@ -176,6 +178,102 @@ export default function GatepassApplicationList() {
   useEffect(() => {
     fetchGatepassApplications(0, false);
   }, [selectedStatus, sortOrder]);
+
+  // Fetch pending approval count for team members (role-based access)
+  useEffect(() => {
+    const fetchPendingApprovalCount = async () => {
+      try {
+        if (!user?.employee_id) {
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        // Step 1: Check if logged-in user has "Gatepass Approver" role
+        const loggedinEmp = await frappeService.getList<any>('Employee', {
+          fields: ['user_id'],
+          filters: [
+            ['name', '=', user?.employee_id]
+          ],
+          limitPageLength: 1
+        });
+
+        if (loggedinEmp.length === 0 || !loggedinEmp[0].user_id) {
+          throw new Error('Employee not found or not linked to user');
+        }
+
+        const userData = await frappeService.getDoc<any>('User', loggedinEmp[0].user_id);
+
+        // Check if user has the Gatepass Approver role
+        const hasApproverRole = userData?.roles?.some(
+          (roleObj: any) => roleObj.role === 'Gatepass Approver'
+        );
+
+        if (!hasApproverRole) {
+          // User does not have Gatepass Approver role
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        // Step 2: Get the employee's team
+        const employeeData = await frappeService.getList<any>('Employee', {
+          fields: ['name', 'team'],
+          filters: [['user_id', '=', loggedinEmp[0].user_id]],
+          limitPageLength: 1
+        });
+
+        if (employeeData.length === 0 || !employeeData[0].team) {
+          // Employee not found or not assigned to a team
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        const userTeam = employeeData[0].team;
+
+        // Step 3: Get all employees in the same team
+        const teamMembers = await frappeService.getList<any>('Employee', {
+          fields: ['name'],
+          filters: [
+            ['team', '=', userTeam],
+            ['name', '!=', user.employee_id] // Exclude the logged-in user
+          ],
+          limitPageLength: 999999 // Get all team members
+        });
+
+        if (teamMembers.length === 0) {
+          setPendingApprovalCount(0);
+          setHasReportingEmployees(false);
+          return;
+        }
+
+        // User has Gatepass Approver role and team members exist
+        setHasReportingEmployees(true);
+
+        // Extract employee IDs
+        const employeeIds = teamMembers.map((emp: any) => emp.name);
+
+        // Step 4: Fetch pending gatepass applications for team members
+        const pendingApplications = await frappeService.getList<any>('Gate Pass Application', {
+          fields: ['name'],
+          filters: [
+            ['employee', 'in', employeeIds],
+            ['approval_status', 'in', ['Pending', 'Open']]
+          ],
+          limitPageLength: 999999 // Get all pending applications
+        });
+
+        setPendingApprovalCount(pendingApplications.length);
+      } catch (err) {
+        console.error('Error fetching pending approval count:', err);
+        setPendingApprovalCount(0);
+        setHasReportingEmployees(false);
+      }
+    };
+
+    fetchPendingApprovalCount();
+  }, [frappeService, user?.employee_id]);
 
   // Refresh handler
   const onRefresh = useCallback(async () => {
@@ -328,6 +426,19 @@ export default function GatepassApplicationList() {
               My Gate Pass Applications
             </Text>
           </View>
+          {hasReportingEmployees && (
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push('/(screens)/gatepassApprovalApplicationList')}
+            >
+              <Ionicons name="document-text-outline" size={30} color={theme.colors.text} />
+              {pendingApprovalCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{pendingApprovalCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Add Gate Pass Application Button */}
@@ -493,6 +604,27 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
+    fontWeight: '700',
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 4,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '700',
   },
   addButtonContainer: {

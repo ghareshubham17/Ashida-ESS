@@ -1,6 +1,6 @@
 // App constants and configuration
 
-export const APP_NAME = 'Ashida ESS';
+export const APP_NAME = 'GAxis ESS';
 
 export const COLORS = {
   primary: '#667eea',

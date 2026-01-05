@@ -837,6 +837,9 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         );
         return;
       }
+
+      // FOR TODAY: Allow multiple check-ins/check-outs - NO blocking if both exist
+      // The alternating pattern logic will be handled below
     } else {
       // For past days (within last 7 days)
       // If status is incomplete (has IN but no OUT, or vice versa), allow completing the pair
@@ -870,21 +873,21 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
         );
         return;
       }
-    }
 
-    // Check if both check-in and check-out exist, no missing punch entry needed
-    if (hasCheckIn && hasCheckOut) {
-      Alert.alert('Info', 'You have already completed both check-in and check-out for this day.');
-      return;
-    }
+      // FOR PAST DATES ONLY: Block if both check-in and check-out exist
+      if (hasCheckIn && hasCheckOut) {
+        Alert.alert('Info', 'You have already completed both check-in and check-out for this day.');
+        return;
+      }
 
-    // If there's an official Attendance record marked as Present (without check-ins/outs), don't allow manual entry
-    if (dayData?.attendanceStatus === 'present' && !hasCheckIn && !hasCheckOut) {
-      Alert.alert(
-        'Not Allowed',
-        'This day is already marked as Present in the attendance system. Manual check-in/out entry is not allowed.'
-      );
-      return;
+      // If there's an official Attendance record marked as Present (without check-ins/outs), don't allow manual entry
+      if (dayData?.attendanceStatus === 'present' && !hasCheckIn && !hasCheckOut) {
+        Alert.alert(
+          'Not Allowed',
+          'This day is already marked as Present in the attendance system. Manual check-in/out entry is not allowed.'
+        );
+        return;
+      }
     }
 
     // Within last 7 days - open dialog for entry
@@ -892,15 +895,46 @@ const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     setSelectedDayData(dayData || null);
 
     // Determine what entry is allowed based on existing punches
-    if (hasCheckIn && !hasCheckOut) {
-      // Only check-in exists, allow check-out
-      setAllowedLogType('OUT');
-    } else if (!hasCheckIn && hasCheckOut) {
-      // Only check-out exists, allow check-in
-      setAllowedLogType('IN');
+    if (isCurrentDay) {
+      // FOR TODAY: Determine next type based on LAST entry (alternating pattern)
+      if (hasCheckIn || hasCheckOut) {
+        // Find the last entry by comparing the most recent timestamps
+        const lastCheckIn = hasCheckIn ? dayData!.checkIns[dayData!.checkIns.length - 1] : null;
+        const lastCheckOut = hasCheckOut ? dayData!.checkOuts[dayData!.checkOuts.length - 1] : null;
+
+        let lastEntryWasCheckIn = false;
+
+        if (lastCheckIn && lastCheckOut) {
+          // Both exist, compare timestamps to find which was last
+          const lastCheckInTime = new Date(lastCheckIn).getTime();
+          const lastCheckOutTime = new Date(lastCheckOut).getTime();
+          lastEntryWasCheckIn = lastCheckInTime > lastCheckOutTime;
+        } else if (lastCheckIn) {
+          // Only check-in exists
+          lastEntryWasCheckIn = true;
+        } else {
+          // Only check-out exists
+          lastEntryWasCheckIn = false;
+        }
+
+        // Alternate: if last was IN, next should be OUT; if last was OUT, next should be IN
+        setAllowedLogType(lastEntryWasCheckIn ? 'OUT' : 'IN');
+      } else {
+        // No entries exist, start with check-in
+        setAllowedLogType('IN');
+      }
     } else {
-      // Neither exists, start with check-in
-      setAllowedLogType('IN');
+      // FOR PAST DAYS: Original logic (only one check-in and one check-out allowed)
+      if (hasCheckIn && !hasCheckOut) {
+        // Only check-in exists, allow check-out
+        setAllowedLogType('OUT');
+      } else if (!hasCheckIn && hasCheckOut) {
+        // Only check-out exists, allow check-in
+        setAllowedLogType('IN');
+      } else {
+        // Neither exists, start with check-in
+        setAllowedLogType('IN');
+      }
     }
 
     // Check if this is today with WFH or OD

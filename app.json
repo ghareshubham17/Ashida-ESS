@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "AshidaESS",
-    "slug": "AshidaESS",
+    "name": "GAxis ESS",
+    "slug": "GAxisESS",
     "version": "1.0.0",
     "owner": "shubham17g",
     "extra": {
@@ -10,8 +10,8 @@
       }
     },
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
-    "scheme": "ashidaess",
+    "icon": "./assets/images/ess-logo.png",
+    "scheme": "gaxisess",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -20,12 +20,12 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/logo.png"
+        "foregroundImage": "./assets/images/ess-logo.png"
       },
-      "versionCode": 5,
+      "versionCode": 7,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.shubham17g.AshidaESS",
+      "package": "com.shubham17g.GAxisESS",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
@@ -52,9 +52,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow AshidaESS to use your location for attendance check-in/check-out.",
-          "locationAlwaysPermission": "Allow AshidaESS to use your location for attendance check-in/check-out.",
-          "locationWhenInUsePermission": "Allow AshidaESS to use your location for attendance check-in/check-out."
+          "locationAlwaysAndWhenInUsePermission": "Allow GAxisESS to use your location for attendance check-in/check-out.",
+          "locationAlwaysPermission": "Allow GAxisESS to use your location for attendance check-in/check-out.",
+          "locationWhenInUsePermission": "Allow GAxisESS to use your location for attendance check-in/check-out."
         }
       ]
     ],
